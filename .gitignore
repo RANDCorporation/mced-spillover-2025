@@ -1,0 +1,11 @@
+*.csv
+*.xlsx
+*.xls
+*.jpeg
+*.pdf
+*.docx
+*.txt
+*.html
+*.log
+*.lst
+.Rproj.user/
