@@ -1,0 +1,109 @@
+---
+title: "Create MCED Panel Dataset"
+author: "Joshua Eagan"
+date: "`r Sys.Date()`"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(here)
+
+```
+
+# Description
+
+This program grabs data from the following URLs and processes them to generate a panel dataset for analysis of negative spillover in the NHS Ghallari trial.
+
+* [older]()
+* [Oct 2023 - Mar 2024](https://www.england.nhs.uk/statistics/statistical-work-areas/cancer-waiting-times/monthly-data-and-summaries/2023-24-monthly-cancer-waiting-times-statistics/)
+* [Apr 2024 - Sep 2024](https://www.england.nhs.uk/statistics/statistical-work-areas/cancer-waiting-times/monthly-data-and-summaries/2024-25-monthly-cancer-waiting-times-statistics/)
+
+The data for this project come specifically from the final statistics for each month for the 28-day faster diagnosis by route and suspected cancer by provider.
+
+It also merges in covariate data from  [Mapping and data files.zip](https://randus-my.sharepoint.com/personal/smann_rand_org/_layouts/15/guestaccess.aspx?share=EYAQtoZVhsBJkRHqD3o7G_YBbO04fbAb6jVKUfjP0XgDJg) (we will want to change this link later to reflect the actual online sources.) 
+
+____________________________________
+
+# Code
+
+This section contains the code to construct the analytic dataset.
+
+### Read in Analytic Data
+
+```{R}
+
+# Reading in data
+cancer_rates = list(
+  
+  # Apr 2024 - Sep 2024
+  data_2024_09 = read.csv("https://www.england.nhs.uk/statistics/wp-content/uploads/sites/2/2025/02/3.-28-Day-Faster-Diagnosis-By-Route-and-Suspected-Cancer-Provider-Data-1.csv", skip =8),
+  data_2024_08 = read.csv("https://www.england.nhs.uk/statistics/wp-content/uploads/sites/2/2025/02/3.-28-Day-Faster-Diagnosis-By-Route-and-Suspected-Cancer-Provider-Data-2.csv", skip =8),
+  data_2024_07 = read.csv("https://www.england.nhs.uk/statistics/wp-content/uploads/sites/2/2025/02/3.-28-Day-Faster-Diagnosis-By-Route-and-Suspected-Cancer-Provider-Data-3.csv", skip =8),
+  data_2024_06 = read.csv("https://www.england.nhs.uk/statistics/wp-content/uploads/sites/2/2025/02/3.-28-Day-Faster-Diagnosis-By-Route-and-Suspected-Cancer-Provider-Data-4.csv", skip =8),
+  data_2024_05 = read.csv("https://www.england.nhs.uk/statistics/wp-content/uploads/sites/2/2025/02/3.-28-Day-Faster-Diagnosis-By-Route-and-Suspected-Cancer-Provider-Data-5.csv", skip =8),
+  data_2024_04 = read.csv("https://www.england.nhs.uk/statistics/wp-content/uploads/sites/2/2025/02/3.-28-Day-Faster-Diagnosis-By-Route-and-Suspected-Cancer-Provider-Data-6.csv", skip =8),
+  
+  # Oct 2023 - Mar 2024
+  data_2024_03 = read.csv("https://www.england.nhs.uk/statistics/wp-content/uploads/sites/2/2024/05/3.-28-Day-Faster-Diagnosis-By-Route-and-Suspected-Cancer-Provider-Data.csv", skip =8),
+  data_2024_02 = read.csv("https://www.england.nhs.uk/statistics/wp-content/uploads/sites/2/2024/07/3.-28-Day-Faster-Diagnosis-By-Route-and-Suspected-Cancer-Provider-Data-2.csv", skip =8),
+  data_2024_01 = read.csv("https://www.england.nhs.uk/statistics/wp-content/uploads/sites/2/2024/07/3.-28-Day-Faster-Diagnosis-By-Route-and-Suspected-Cancer-Provider-Data-3.csv", skip =8),
+  data_2023_12 = read.csv("https://www.england.nhs.uk/statistics/wp-content/uploads/sites/2/2024/07/3.-28-Day-Faster-Diagnosis-By-Route-and-Suspected-Cancer-Provider-Data-4.csv", skip =8),
+  data_2023_11 = read.csv("https://www.england.nhs.uk/statistics/wp-content/uploads/sites/2/2024/07/3.-28-Day-Faster-Diagnosis-By-Route-and-Suspected-Cancer-Provider-Data-6.csv", skip =8),
+  data_2023_10 = read.csv("https://www.england.nhs.uk/statistics/wp-content/uploads/sites/2/2024/07/3.-28-Day-Faster-Diagnosis-By-Route-and-Suspected-Cancer-Provider-Data-5.csv", skip =8),
+  
+  # older
+  data_2023_09 = read.csv("https://www.england.nhs.uk/statistics/wp-content/uploads/sites/2/2024/01/16.-28-Day-Faster-Diagnosis-By-route-and-suspected-cancer-or-breast-symptomatic-Provider-Data.csv", skip =6),
+  data_2023_08 = read.csv("https://www.england.nhs.uk/statistics/wp-content/uploads/sites/2/2024/01/16.-28-Day-Faster-Diagnosis-By-route-and-suspected-cancer-or-breast-symptomatic-Provider-Data-8.csv", skip =6),
+  data_2023_07 = read.csv("https://www.england.nhs.uk/statistics/wp-content/uploads/sites/2/2024/01/16.-28-Day-Faster-Diagnosis-By-route-and-suspected-cancer-or-breast-symptomatic-Provider-Data-2.csv", skip =6),
+  data_2023_06 = read.csv("https://www.england.nhs.uk/statistics/wp-content/uploads/sites/2/2024/01/16.-28-Day-Faster-Diagnosis-By-route-and-suspected-cancer-or-breast-symptomatic-Provider-Data-3.csv", skip =6),
+  data_2023_05 = read.csv("https://www.england.nhs.uk/statistics/wp-content/uploads/sites/2/2024/01/16.-28-Day-Faster-Diagnosis-By-route-and-suspected-cancer-or-breast-symptomatic-Provider-Data-4.csv", skip =6),
+  data_2023_04 = read.csv("https://www.england.nhs.uk/statistics/wp-content/uploads/sites/2/2024/01/16.-28-Day-Faster-Diagnosis-By-route-and-suspected-cancer-or-breast-symptomatic-Provider-Data-5.csv", skip =6),
+  data_2023_03 = read.csv("https://www.england.nhs.uk/statistics/wp-content/uploads/sites/2/2023/07/16.-28-Day-Faster-Diagnosis-By-route-and-suspected-cancer-or-breast-symptomatic-Provider-Data-1.csv", skip =6),
+  data_2023_02 = read.csv("https://www.england.nhs.uk/statistics/wp-content/uploads/sites/2/2023/07/16.-28-Day-Faster-Diagnosis-By-route-and-suspected-cancer-or-breast-symptomatic-Provider-Data-2.csv", skip =6),
+  data_2023_01 = read.csv("https://www.england.nhs.uk/statistics/wp-content/uploads/sites/2/2023/07/16.-28-Day-Faster-Diagnosis-By-route-and-suspected-cancer-or-breast-symptomatic-Provider-Data-3.csv", skip =6),
+  data_2022_12 = read.csv("https://www.england.nhs.uk/statistics/wp-content/uploads/sites/2/2023/07/16.-28-Day-Faster-Diagnosis-By-route-and-suspected-cancer-or-breast-symptomatic-Provider-Data-4.csv", skip =6),
+  data_2022_11 = read.csv("https://www.england.nhs.uk/statistics/wp-content/uploads/sites/2/2023/07/16.-28-Day-Faster-Diagnosis-By-route-and-suspected-cancer-or-breast-symptomatic-Provider-Data-5.csv", skip =6),
+  data_2022_10 = read.csv("https://www.england.nhs.uk/statistics/wp-content/uploads/sites/2/2023/07/16.-28-Day-Faster-Diagnosis-By-route-and-suspected-cancer-or-breast-symptomatic-Provider-Data-6.csv", skip =6),
+  data_2022_09 = read.csv("https://www.england.nhs.uk/statistics/wp-content/uploads/sites/2/2023/04/16.-28-Day-Faster-Diagnosis-By-route-and-suspected-cancer-or-breast-symptomatic-Provider-Data-1.csv", skip =6),
+  data_2022_08 = read.csv("https://www.england.nhs.uk/statistics/wp-content/uploads/sites/2/2023/04/16.-28-Day-Faster-Diagnosis-By-route-and-suspected-cancer-or-breast-symptomatic-Provider-Data-2.csv", skip =6),
+  data_2022_07 = read.csv("https://www.england.nhs.uk/statistics/wp-content/uploads/sites/2/2023/04/16.-28-Day-Faster-Diagnosis-By-route-and-suspected-cancer-or-breast-symptomatic-Provider-Data-3.csv", skip =6),
+  data_2022_06 = read.csv("https://www.england.nhs.uk/statistics/wp-content/uploads/sites/2/2023/04/16.-28-Day-Faster-Diagnosis-By-route-and-suspected-cancer-or-breast-symptomatic-Provider-Data-4.csv", skip =6),
+  data_2022_05 = read.csv("https://www.england.nhs.uk/statistics/wp-content/uploads/sites/2/2023/04/16.-28-Day-Faster-Diagnosis-By-route-and-suspected-cancer-or-breast-symptomatic-Provider-Data-5.csv", skip =6),
+  data_2022_04 = read.csv("https://www.england.nhs.uk/statistics/wp-content/uploads/sites/2/2023/04/16.-28-Day-Faster-Diagnosis-By-route-and-suspected-cancer-or-breast-symptomatic-Provider-Data-6.csv", skip =6),
+  data_2022_03 = read.csv("https://www.england.nhs.uk/statistics/wp-content/uploads/sites/2/2022/10/16.-28-Day-Faster-Diagnosis-By-route-and-suspected-cancer-or-breast-symptomatic-Provider-Data-1.csv", skip =6),
+  data_2022_02 = read.csv("https://www.england.nhs.uk/statistics/wp-content/uploads/sites/2/2022/10/16.-28-Day-Faster-Diagnosis-By-route-and-suspected-cancer-or-breast-symptomatic-Provider-Data-2.csv", skip =6),
+  data_2022_01 = read.csv("https://www.england.nhs.uk/statistics/wp-content/uploads/sites/2/2022/10/16.-28-Day-Faster-Diagnosis-By-route-and-suspected-cancer-or-breast-symptomatic-Provider-Data-3.csv", skip =6),
+  data_2021_12 = read.csv("https://www.england.nhs.uk/statistics/wp-content/uploads/sites/2/2022/10/16.-28-Day-Faster-Diagnosis-By-route-and-suspected-cancer-or-breast-symptomatic-Provider-Data-4.csv", skip =6),
+  data_2021_11 = read.csv("https://www.england.nhs.uk/statistics/wp-content/uploads/sites/2/2022/10/16.-28-Day-Faster-Diagnosis-By-route-and-suspected-cancer-or-breast-symptomatic-Provider-Data-5.csv", skip =6),
+  data_2021_10 = read.csv("https://www.england.nhs.uk/statistics/wp-content/uploads/sites/2/2022/10/16.-28-Day-Faster-Diagnosis-By-route-and-suspected-cancer-or-breast-symptomatic-Provider-Data-6.csv", skip =6),
+  data_2021_09 = read.csv("https://www.england.nhs.uk/statistics/wp-content/uploads/sites/2/2022/10/16.-28-Day-Faster-Diagnosis-By-route-and-suspected-cancer-or-breast-symptomatic-Provider-Data-7.csv", skip =6),
+  data_2021_08 = read.csv("https://www.england.nhs.uk/statistics/wp-content/uploads/sites/2/2022/10/16.-28-Day-Faster-Diagnosis-By-route-and-suspected-cancer-or-breast-symptomatic-Provider-Data-8.csv", skip =6),
+  data_2021_07 = read.csv("https://www.england.nhs.uk/statistics/wp-content/uploads/sites/2/2022/10/16.-28-Day-Faster-Diagnosis-By-route-and-suspected-cancer-or-breast-symptomatic-Provider-Data-9.csv", skip =6),
+  data_2021_06 = read.csv("https://www.england.nhs.uk/statistics/wp-content/uploads/sites/2/2022/10/16.-28-Day-Faster-Diagnosis-By-route-and-suspected-cancer-or-breast-symptomatic-Provider-Data-10.csv", skip =6),
+  data_2021_05 = read.csv("https://www.england.nhs.uk/statistics/wp-content/uploads/sites/2/2022/10/16.-28-Day-Faster-Diagnosis-By-route-and-suspected-cancer-or-breast-symptomatic-Provider-Data-11.csv", skip =6),
+  data_2021_04 = read.csv("https://www.england.nhs.uk/statistics/wp-content/uploads/sites/2/2022/10/16.-28-Day-Faster-Diagnosis-By-route-and-suspected-cancer-or-breast-symptomatic-Provider-Data-12.csv", skip =6)
+  
+)
+
+# looking at variables
+purrr::map(cancer_rates, ~names(.x)) %>% 
+  purrr::reduce(append) %>%
+  table
+
+
+
+
+
+# pulling in covariates
+covariates = purrr::map(grep("Covid", 
+                             list.files(file.path(here::here(), "data", "raw_covariates")),
+                             value = T),
+           ~switch(tools::file_ext(.x),
+                   csv = read.csv(input$file$datapath, stringsAsFactors = FALSE),
+                   xlsx = readxl::read_excel(input$file$datapath)
+))
+
+```
