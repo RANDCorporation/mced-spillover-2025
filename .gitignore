@@ -6,3 +6,5 @@
 *.log
 *.lst
 .Rproj.user/
+*.DS_Store
+*.Rhistory
