@@ -8,3 +8,6 @@
 .Rproj.user/
 *.DS_Store
 *.Rhistory
+*sean_working
+*input_backup
+*.Rdata

@@ -1,6 +1,6 @@
 ---
 title: "Create MCED Panel Dataset"
-author: "Joshua Eagan"
+author: "Joshua Eagan and Sean Mann"
 date: "`r Sys.Date()`"
 output: github_document
 ---
@@ -15,7 +15,7 @@ library(here)
 
 # Description
 
-This program grabs data from the following URLs and processes them to generate a panel dataset for analysis of negative spillover in the NHS Ghallari trial.
+This program grabs data from the following URLs and processes them to generate a panel dataset for analysis of diagnostic delays in NHS England.
 
 * [older]()
 * [Oct 2023 - Mar 2024](https://www.england.nhs.uk/statistics/statistical-work-areas/cancer-waiting-times/monthly-data-and-summaries/2023-24-monthly-cancer-waiting-times-statistics/)
@@ -95,15 +95,5 @@ purrr::map(cancer_rates, ~names(.x)) %>%
 
 
 
-
-
-# pulling in covariates
-covariates = purrr::map(grep("Covid", 
-                             list.files(file.path(here::here(), "data", "raw_covariates")),
-                             value = T),
-           ~switch(tools::file_ext(.x),
-                   csv = read.csv(input$file$datapath, stringsAsFactors = FALSE),
-                   xlsx = readxl::read_excel(input$file$datapath)
-))
 
 ```
