@@ -10,3 +10,6 @@
 *.Rhistory
 .Rprofile
 *.csv
+*sean_working
+*input_backup
+*.Rdata
