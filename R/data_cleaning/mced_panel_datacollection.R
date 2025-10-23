@@ -104,11 +104,6 @@ for(n in names(data)){
   data[[n]]$date = paste0(substr(n, 6, 12), "_01")
 }
 
-# making sure the datasets line up - remove if not needed
-# lapply(data, dim)
-# lapply(data, names)
-# purrr::map(data, ~table(names(.x) %in% names(data[[1]])))
-
 # appending
 data = Reduce(rbind, data)
 
@@ -141,37 +136,54 @@ write.csv(data, file = "data/sean_working/28day_clean.csv")
 rows_to_keep <- data$Provider.Code != ""
 data <- data[rows_to_keep, ]
 
-# Remove all rows for referrals for breast symptoms where cancer is not initially suspected, referrals missing values, and referrals for non-specific symptoms
-data <- subset(data, !(suspected_cancer_or_breast_symptomatic %in% c("Exhibited (non-cancer) breast symptoms - cancer not initially suspected", "Missing or invalid", "Suspected cancer - non-specific symptoms")))
+write.csv(data, file = "data/sean_working/28day_clean_.csv")
+
+data_summary_stats <- data_summary_stats %>%
+  add_row(
+    label = "calculation_Prior to data cleaning and linking, the NHS England Provider-based Cancer Waiting Times dataset reported that XXXXXXXXX patient referrals for suspected cancer resulted in diagnostic resolution during the study period",
+    value = sum(data$told_diagnosis_outcome_total, na.rm = TRUE)
+  )
+
+
+# Calculate and remove all rows for referrals for breast symptoms where cancer is not initially suspected, referrals missing values, and referrals for non-specific symptoms
+beforeExcl = sum(data$told_diagnosis_outcome_total, na.rm = TRUE)
+data <- subset(data, !(suspected_cancer_or_breast_symptomatic %in% c("Exhibited (non-cancer) breast symptoms - cancer not initially suspected")))
+afterExcl = sum(data$told_diagnosis_outcome_total, na.rm = TRUE)
+data_summary_stats <- data_summary_stats %>%
+  add_row(
+    label = "calculation_We excluded XXXXX referrals labeled 'Exhibited (non-cancer) breast symptoms - cancer not initially suspected' from our analysis",
+    value = beforeExcl - afterExcl
+  )
+
+beforeExcl = sum(data$told_diagnosis_outcome_total, na.rm = TRUE)
+data <- subset(data, !(suspected_cancer_or_breast_symptomatic %in% c("Missing or Invalid")))
+afterExcl = sum(data$told_diagnosis_outcome_total, na.rm = TRUE)
+data_summary_stats <- data_summary_stats %>%
+  add_row(
+    label = "calculation_We excluded XXXXX referrals labeled 'Missing or Invalid' from our analysis",
+    value = beforeExcl - afterExcl
+  )
+
+beforeExcl = sum(data$told_diagnosis_outcome_total, na.rm = TRUE)
+data <- subset(data, !(suspected_cancer_or_breast_symptomatic %in% c("Suspected cancer - non-specific symptoms")))
+afterExcl = sum(data$told_diagnosis_outcome_total, na.rm = TRUE)
+data_summary_stats <- data_summary_stats %>%
+  add_row(
+    label = "calculation_We excluded XXXXX referrals labeled 'Suspected cancer - non-specific symptoms' from our analysis",
+    value = beforeExcl - afterExcl
+  )
+
+data_summary_stats <- data_summary_stats %>%
+  add_row(
+    label = "calculation_After these exclusions, XXXX referrals remained in our dataset",
+    value = afterExcl
+  )
 
 # Export processed file for quality checking purposes
-# write.csv(data, file = paste0(workingDirPath, "28day_clean_test1.csv"))
+write.csv(data, file = paste0(workingDirPath, "28day_clean_test1.csv"))
 
-# # # Calculation start # # #
-
-# Calculate numbers of all referrals that are for groupings of cancer types # # #
-
-for (group_name in names(cancer_groups)) {
-  # Filter and calculate the total sum for the current group
-  group_sum <- data %>%
-    filter(suspected_cancer_or_breast_symptomatic %in% cancer_groups[[group_name]]) %>%
-    summarise(total = sum(told_diagnosis_outcome_total, na.rm = TRUE)) %>%
-    pull(total)
-
-  # Add a row to data_summary_stats with the current group's total
-  data_summary_stats <- data_summary_stats %>%
-    add_row(
-      label = paste0("calculation_Total referrals for ", group_name, " cancers: ", paste(cancer_groups[[group_name]], collapse = ", ")),
-      value = group_sum
-    )
-  print("here")
-  print(group_name)
-  print(paste(cancer_groups[[group_name]], collapse = ", "))
-}
-
-write.csv(data_summary_stats, paste0(outDirPath, "dataSummaryStats.csv"), row.names = FALSE)
-
-# # # Calculation end # # #
+# Export processed file for quality checking purposes
+write.csv(data, file = paste0(workingDirPath, "28day_clean_test1.csv"))
 
 # # # Linking data to cancer alliances start # # #
 
@@ -264,7 +276,7 @@ LinkToCA <- function(df, dfName, check = TRUE) {
   df <- CombineSuffixColumns(df, check)
 
   # Export processed file for quality checking purposes
-  # write.csv(df, file = paste0(workingDirPath, dfName, "link2.csv"))
+  write.csv(df, file = paste0(workingDirPath, dfName, "link2.csv"))
 
   # Third input file concerns providers that did not link to Cancer Alliances via above linking files.
   # These providers had to be linked to Cancer Alliances manually, based on publicly available information (see "Source" column in input file)
@@ -307,7 +319,21 @@ LinkToCA <- function(df, dfName, check = TRUE) {
   return(df)
 }
 
+before = sum(data$told_diagnosis_outcome_total, na.rm = TRUE)
 data <- LinkToCA(data, "28day_clean")
+after = sum(data$told_diagnosis_outcome_total, na.rm = TRUE)
+
+data_summary_stats <- data_summary_stats %>%
+  add_row(
+    label = "calculation_This manual review resulted in the exclusion of XXXXXX referrals associated with 8 providers that provide services across multiple regions",
+    value = before - after
+  )
+
+data_summary_stats <- data_summary_stats %>%
+  add_row(
+    label = "calculation_Following data cleaning and linking, our study sample included XXXXXX cancer referrals associated with 150 providers",
+    value = after
+  )
 
 # Export processed file for quality checking purposes
 # write.csv(data, file = paste0(workingDirPath, "28day_clean_test2.csv"))
@@ -570,5 +596,29 @@ data$date <- as.Date(data$date)
 # calculate month number, starting with the first month in the dataset, which is Apr 2021
 data$monthNum = as.numeric((year(data$date)-2021)*12 +(month(data$date)) - 3)
 
+# Calculate numbers of all referrals that are for groupings of cancer types # # #
+
+for (group_name in names(cancer_groups)) {
+  # Filter and calculate the total sum for the current group
+  group_sum <- data %>%
+    filter(suspected_cancer_or_breast_symptomatic %in% cancer_groups[[group_name]]) %>%
+    summarise(total = sum(told_diagnosis_outcome_total, na.rm = TRUE)) %>%
+    pull(total)
+
+  # Add a row to data_summary_stats with the current group's total
+  data_summary_stats <- data_summary_stats %>%
+    add_row(
+      label = paste0("calculation_Total referrals for ", group_name, " cancers: ", paste(cancer_groups[[group_name]], collapse = ", ")),
+      value = group_sum
+    )
+  print("here")
+  print(group_name)
+  print(paste(cancer_groups[[group_name]], collapse = ", "))
+}
+
+# # # Calculation end # # #
+
 # Export processed file
 write.csv(data, file = paste0(outDirPath, "base_data.csv"))
+
+write.csv(data_summary_stats, paste0(outDirPath, "dataSummaryStats.csv"), row.names = FALSE)
