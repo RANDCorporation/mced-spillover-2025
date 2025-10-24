@@ -12,11 +12,18 @@ library(tidyverse)
 library(readxl)
 library(fixest)
 library(scales)
+library(here)
+library(fwildclusterboot)
+
+# fwildclusterboot is no longer available on cran, so I installed the most recent version from the cran archive
+# remotes::install_version("fwildclusterboot", "0.13.0")
+
+set.seed(20251023)
 
 # # # Global parameters start # # #
 
 # Set working directory path
-dirPath <- "data/"
+dirPath <- paste0(here("data"), "/")
 dataDirPath <- paste0(dirPath, "cleaned_data/")
 covariateDirPath <- paste0(dirPath, "raw_covariates/")
 linkingDirPath <- paste0(dirPath, "linking_files/")
@@ -73,8 +80,17 @@ baseData <- read.csv(paste0(dataDirPath, "base_data.csv"),
                  row.names = 1,
                  stringsAsFactors = FALSE)
 
+# merge on propensity score weights
+psw_weight = read.csv(paste0(dataDirPath, "PS_wts_for_sensruns.csv"))
+baseData = baseData %>%
+  left_join((psw_weight %>% 
+    select(Cancer.Alliance = CancerAlliance, 
+           psw)))
+table(is.na(baseData$psw))
+
 # After all data has been processed and linked, set up function for separate analyses
 Analysis <- function(data, periodLength, sensitivity_analysis, depVar) {
+
   # Create suffix with analysis run parameters to append at end of resulting filenames
   suffix <- paste0("_", periodLength, "_", sensitivity_analysis, "_", depVar)
   suffix <- gsub("__", "_", suffix) # if no sensitivity analysis, replace double underscore with single
@@ -352,7 +368,7 @@ Analysis <- function(data, periodLength, sensitivity_analysis, depVar) {
     # load population by cancer alliance region data from 2020 which is used to calculate per 100000 population rates
     # this file is
     file_path <- paste0(covariateDirPath, "Cancer+Prevalence+Statistics+England+2020_download_popByCA.csv")
-    pop_df <- read.csv(file_path, skip = 1)
+    pop_df <- read.csv(file_path)
 
     dataGrouped <- merge(dataGrouped, pop_df[, c("Cancer.Alliance", "population")],
                          by = "Cancer.Alliance", all.x = TRUE)
@@ -455,17 +471,46 @@ Analysis <- function(data, periodLength, sensitivity_analysis, depVar) {
       }
     }
 
-    # PLACEHOLDER FOR JOSHUA - Code for wild bootstrap two way fixed effects model goes below
-    # This model should be just like the one above, except that instead of errors clustered at regional level the model should instead generate errors using wild bootstrapping
+    # Code for wild bootstrap two way fixed effects model goes below
     else if (sensitivity_analysis == "wildBootstrap")
     {
+        # stop code here to examine
+        browser()
+
+        # Your model
+        model <- feols(
+          fml = as.formula(formula_str),
+          weights = ~told_diagnosis_outcome_total,
+          data = dataGrouped,
+          cluster = ~Cancer.Alliance
+        )
+
+        # Wild cluster bootstrap using Rademacher weights
+        out = list()
       
+        # looping through the coeficients to adjust each p value
+        for(dummy_var in dummy_vars){
+          boot_res <- boottest(
+            as.formula(formula_str),
+            param = dummy_var,
+            B = 999,
+            cluster = ~Cancer.Alliance,
+            type = "rademacher"
+          )
+          out[[dummy_var]] = boot_res
+        }
+
     }
 
     # PLACEHOLDER FOR JOSHUA - Code for propensity score weighted two way fixed effects model goes below
     # This model should be just like the one above, except that instead of weighting by total number of referrals, the model should instead use propensity score weights
     else if (sensitivity_analysis == "propensityScore")
     {
+      
+              model = feols(fml= as.formula(formula_str),
+                      weights= ~psw,
+                      data=dataGrouped,
+                      cluster="Cancer.Alliance")
 
     }
 
@@ -484,7 +529,15 @@ Analysis <- function(data, periodLength, sensitivity_analysis, depVar) {
       # Extract confidence intervals
       conf_intervals <- confint(model, level = 0.95)
 
-      p_values <- coeftable(model)[, "Pr(>|t|)"]
+      # P-values: use bootstrap p-values for wildBootstrap, otherwise use standard
+      if (sensitivity_analysis == "wildBootstrap") {
+        p_values <- sapply(variables_of_interest, function(var) {
+          boot_results[[var]]$p_val  # Extract bootstrap p-value
+        })
+        names(p_values) <- variables_of_interest
+      } else {
+        p_values <- coeftable(model)[, "Pr(>|t|)"]
+      }
 
       # Select specific variables to capture in table
       variables_of_interest <- c("dummy_period_02", "dummy_period_03", "dummy_period_04", "dummy_period_05", "dummy_period_06", "dummy_period_07")
@@ -650,8 +703,8 @@ Analysis(baseData, periodLength = "1m", sensitivity_analysis = "noWeights", depV
 Analysis(baseData, periodLength = "6m", sensitivity_analysis = "noWeights", depVar = "refRate") # produces overallResults_6m_noWeights_refRate.csv
 
 # FOR JOSHUA - Once you are ready to work on wild bootstrapping model runs, add your code to Analysis function, remove comments and run the FOUR lines of code below
-# Analysis(baseData, periodLength = "1m", sensitivity_analysis = "wildBootstrap", depVar = "delayRate")
-# Analysis(baseData, periodLength = "6m", sensitivity_analysis = "wildBootstrap", depVar = "delayRate") # produces overallResults_6m_wildBootstrap_delayRate.csv
+Analysis(baseData, periodLength = "1m", sensitivity_analysis = "wildBootstrap", depVar = "delayRate")
+Analysis(baseData, periodLength = "6m", sensitivity_analysis = "wildBootstrap", depVar = "delayRate") # produces overallResults_6m_wildBootstrap_delayRate.csv
 
 # Analysis(baseData, periodLength = "1m", sensitivity_analysis = "wildBootstrap", depVar = "refRate")
 # Analysis(baseData, periodLength = "6m", sensitivity_analysis = "wildBootstrap", depVar = "refRate") # produces overallResults_6m_wildBootstrap_refRate.csv

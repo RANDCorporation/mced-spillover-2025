@@ -10,11 +10,12 @@
 
 library(tidyverse)
 library(readxl)
+library(here)
 
 # # # Global parameters start # # #
 
 # Set working directory path
-dirPath <- "data/"
+dirPath <- paste0(here("data"), "/")
 covariateDirPath <- paste0(dirPath, "raw_covariates/")
 linkingDirPath <- paste0(dirPath, "linking_files/")
 outDirPath <- paste0(dirPath, "cleaned_data/")
@@ -130,13 +131,13 @@ data = data %>% select(-c(x, x_)) %>%
          ) %>%
   select(date, percentage_told_diagnosis_outcome_within_28_days, everything())
 
-write.csv(data, file = "data/sean_working/28day_clean.csv")
+# write.csv(data, file = "data/sean_working/28day_clean.csv")
 
 # Remove all rows except for rows that contain organization-level data (this removes empty 'NA' rows and rows with regional totals)
 rows_to_keep <- data$Provider.Code != ""
 data <- data[rows_to_keep, ]
 
-write.csv(data, file = "data/sean_working/28day_clean_.csv")
+# write.csv(data, file = "data/sean_working/28day_clean_.csv")
 
 data_summary_stats <- data_summary_stats %>%
   add_row(
@@ -180,10 +181,10 @@ data_summary_stats <- data_summary_stats %>%
   )
 
 # Export processed file for quality checking purposes
-write.csv(data, file = paste0(workingDirPath, "28day_clean_test1.csv"))
+# write.csv(data, file = paste0(workingDirPath, "28day_clean_test1.csv"))
 
 # Export processed file for quality checking purposes
-write.csv(data, file = paste0(workingDirPath, "28day_clean_test1.csv"))
+# write.csv(data, file = paste0(workingDirPath, "28day_clean_test1.csv"))
 
 # # # Linking data to cancer alliances start # # #
 
@@ -276,7 +277,7 @@ LinkToCA <- function(df, dfName, check = TRUE) {
   df <- CombineSuffixColumns(df, check)
 
   # Export processed file for quality checking purposes
-  write.csv(df, file = paste0(workingDirPath, dfName, "link2.csv"))
+  # write.csv(df, file = paste0(workingDirPath, dfName, "link2.csv"))
 
   # Third input file concerns providers that did not link to Cancer Alliances via above linking files.
   # These providers had to be linked to Cancer Alliances manually, based on publicly available information (see "Source" column in input file)
@@ -619,6 +620,9 @@ for (group_name in names(cancer_groups)) {
 # # # Calculation end # # #
 
 # Export processed file
+if(!file.exists(outDirPath)){
+  dir.create(outDirPath)
+}
 write.csv(data, file = paste0(outDirPath, "base_data.csv"))
 
 write.csv(data_summary_stats, paste0(outDirPath, "dataSummaryStats.csv"), row.names = FALSE)
