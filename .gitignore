@@ -13,3 +13,8 @@
 *sean_working
 *input_backup
 *.Rdata
+/data/results/
+
+# Exception: include CSV files in data/linking_files/
+!data/linking_files/
+!data/linking_files/*.csv

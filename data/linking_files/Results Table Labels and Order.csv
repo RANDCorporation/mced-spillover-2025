@@ -1,0 +1,18 @@
+﻿CancerType,CancerTypeLabel,Order
+exclusively_protocol_not_screened,Primary high-detection group,1
+contains_protocol,Secondary expanded high-detection group,5
+does_not_contain_protocol,Secondary low-detection group,9
+Suspected head & neck cancer,   Head & neck,2
+Suspected lung cancer,   Lung,3
+Suspected upper gastrointestinal cancer,   Upper gastrointestinal,4
+Suspected breast cancer,   Breast,12
+Suspected lower gastrointestinal cancer,   Lower gastrointestinal,7
+Suspected skin cancer,   Skin,14
+Suspected acute leukaemia,   Acute leukaemia,10
+Suspected brain/central nervous system tumours,   Brain/central nervous system tumours,11
+Suspected gynaecological cancer,   Gynaecological cancer,5
+Suspected haematological malignancies (excluding acute leukaemia),   Haematological malignancies (excluding acute leukaemia),6
+Suspected other cancer,   Other,16
+Suspected sarcoma,   Sarcoma,13
+Suspected testicular cancer,   Testicular,15
+Suspected urological malignancies (excluding testicular),   Urological malignancies (excluding testicular),8

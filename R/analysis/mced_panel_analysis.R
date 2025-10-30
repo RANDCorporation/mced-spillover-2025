@@ -15,7 +15,8 @@ library(scales)
 library(here)
 library(fwildclusterboot)
 
-# fwildclusterboot is no longer available on cran, so I installed the most recent version from the cran archive
+# fwildclusterboot is no longer available on cran, so I installed the most recent version from the cran archive.
+# it's important you use this line to install! results for this package are not always backwards compatible.
 # remotes::install_version("fwildclusterboot", "0.13.0")
 
 set.seed(20251023)
@@ -30,7 +31,7 @@ linkingDirPath <- paste0(dirPath, "linking_files/")
 resultsDirPath <- paste0(dirPath, "results/")
 
 # Uncomment this and all other lines that refer to workingDirPath if you want to output intermediate data processing files for step-by-step quality checking purposes
-workingDirPath <- paste0(dirPath, "sean_working/")
+# workingDirPath <- paste0(dirPath, "sean_working/")
 
 cancer_groups <- list(
   exclusively_protocol_not_screened = c("Suspected head & neck cancer",
@@ -79,14 +80,6 @@ summary_stats <- data.frame(label = character(), value = numeric())
 baseData <- read.csv(paste0(dataDirPath, "base_data.csv"),
                  row.names = 1,
                  stringsAsFactors = FALSE)
-
-# merge on propensity score weights
-psw_weight = read.csv(paste0(dataDirPath, "PS_wts_for_sensruns.csv"))
-baseData = baseData %>%
-  left_join((psw_weight %>% 
-    select(Cancer.Alliance = CancerAlliance, 
-           psw)))
-table(is.na(baseData$psw))
 
 # After all data has been processed and linked, set up function for separate analyses
 Analysis <- function(data, periodLength, sensitivity_analysis, depVar) {
@@ -226,10 +219,12 @@ Analysis <- function(data, periodLength, sensitivity_analysis, depVar) {
         group_by(mced_treated) %>%
         filter(periodNum == min(periodNum))
 
+      limits = c(min(append(c(-6.7, trendData$lower_ci))), max(append(trendData$upper_ci, 14.7)))
+
       trendPlot = ggplot(trendData, aes(x = periodNum, y = point_estimate, color = factor(mced_treated))) +
         geom_point(position = position_dodge(width = 0.25), size = 0.35) +
         geom_errorbar(aes(ymin = lower_ci, ymax = upper_ci), width = 0.2, position = position_dodge(width = 0.25)) +
-        scale_x_continuous(limits = c(-6.7, 14.7), breaks = seq(-6, 14, by = 1), expand = c(0, 0)) +
+        scale_x_continuous(limits = limits, breaks = seq(ceiling(limits[1]), floor(limits[2]), by = 1), expand = c(0, 0)) +
         scale_y_continuous(labels = scales::percent_format(), limits = c(0.10, 0.50)) + # Set limits to start at 0%
         labs(
           x = "Length of time (months) relative to trial start",
@@ -368,7 +363,7 @@ Analysis <- function(data, periodLength, sensitivity_analysis, depVar) {
     # load population by cancer alliance region data from 2020 which is used to calculate per 100000 population rates
     # this file is
     file_path <- paste0(covariateDirPath, "Cancer+Prevalence+Statistics+England+2020_download_popByCA.csv")
-    pop_df <- read.csv(file_path)
+    pop_df <- read.csv(file_path, skip=1)
 
     dataGrouped <- merge(dataGrouped, pop_df[, c("Cancer.Alliance", "population")],
                          by = "Cancer.Alliance", all.x = TRUE)
@@ -395,7 +390,7 @@ Analysis <- function(data, periodLength, sensitivity_analysis, depVar) {
     dataGrouped$est_wait_time <- (dataGrouped$est_wait_time / dataGrouped$told_diagnosis_outcome_total)
 
     # Export processed file for quality checking purposes
-    write.csv(dataGrouped, file = paste0(workingDirPath, "28day_clean_groupedB", suffix2, ".csv"))
+    # write.csv(dataGrouped, file = paste0(workingDirPath, "28day_clean_groupedB", suffix2, ".csv"))
 
     # calculating percentage of staff absent
     dataGrouped$percentageAbsent = (dataGrouped$totalAbsent / dataGrouped$totalStaff)
@@ -425,7 +420,7 @@ Analysis <- function(data, periodLength, sensitivity_analysis, depVar) {
     dummy_vars <- names(dataGrouped)[grepl("dummy_period_", names(dataGrouped))]
 
     # Export processed file for quality checking purposes
-    write.csv(dataGrouped, file = paste0(workingDirPath, "28day_clean_test_grouped", suffix2, ".csv"))
+    # write.csv(dataGrouped, file = paste0(workingDirPath, "28day_clean_test_grouped", suffix2, ".csv"))
 
     covariate <- "`percentageAbsent` + " # set covariate for all but two sensitivity analyses to be percentage staff absent
 
@@ -474,43 +469,59 @@ Analysis <- function(data, periodLength, sensitivity_analysis, depVar) {
     # Code for wild bootstrap two way fixed effects model goes below
     else if (sensitivity_analysis == "wildBootstrap")
     {
-        # stop code here to examine
-        browser()
 
-        # Your model
+        # running the model
         model <- feols(
           fml = as.formula(formula_str),
           weights = ~told_diagnosis_outcome_total,
-          data = dataGrouped,
+          data = (dataGrouped %>%
+                    mutate(
+                      Cancer.Alliance = as.factor(Cancer.Alliance),
+                      period = as.factor(period)
+                    )),
           cluster = ~Cancer.Alliance
         )
 
         # Wild cluster bootstrap using Rademacher weights
         out = list()
       
+        # grab only the X variables from the formula (but not fixed effects)
+        x_vars <- strsplit(strsplit(formula_str, "~|\\|")[[1]][2], "\\+")[[1]] %>%
+          trimws() %>%                    # Remove whitespace
+          gsub("`", "", .)           
+              
         # looping through the coeficients to adjust each p value
-        for(dummy_var in dummy_vars){
+        for(var in x_vars){
           boot_res <- boottest(
-            as.formula(formula_str),
-            param = dummy_var,
+            model,
+            param = var,
             B = 999,
-            cluster = ~Cancer.Alliance,
+            clustid = "Cancer.Alliance",
             type = "rademacher"
           )
-          out[[dummy_var]] = boot_res
+          out[[var]] = boot_res
         }
 
     }
 
-    # PLACEHOLDER FOR JOSHUA - Code for propensity score weighted two way fixed effects model goes below
-    # This model should be just like the one above, except that instead of weighting by total number of referrals, the model should instead use propensity score weights
+    # behaves just like the one above, except that instead of weighting by total number of referrals, the model uses propensity score weights
     else if (sensitivity_analysis == "propensityScore")
     {
+
+      # merge on propensity score weights
+      psw_weight = read.csv(paste0(dataDirPath, "PS_wts_for_sensruns.csv"))
+      dataGrouped = dataGrouped %>%
+        left_join((psw_weight %>% 
+          select(Cancer.Alliance = CancerAlliance, 
+                psw)))
+      print("Are there any Missing PSW weights `table(is.na(dataGrouped$psw))`?\n")
+      print(table(is.na(dataGrouped$psw)))
       
-              model = feols(fml= as.formula(formula_str),
-                      weights= ~psw,
-                      data=dataGrouped,
-                      cluster="Cancer.Alliance")
+      # running the model with PS weights
+      model = feols(fml= as.formula(formula_str),
+              weights= ~psw,
+              data=dataGrouped,
+              cluster="Cancer.Alliance")
 
     }
 
@@ -526,16 +537,18 @@ Analysis <- function(data, periodLength, sensitivity_analysis, depVar) {
       # Extract coefficients (estimates)
       estimates <- coef(model)
 
-      # Extract confidence intervals
-      conf_intervals <- confint(model, level = 0.95)
-
-      # P-values: use bootstrap p-values for wildBootstrap, otherwise use standard
+      # P-values: use bootstrap p-values and confidence intervals for wildBootstrap, otherwise use standard
       if (sensitivity_analysis == "wildBootstrap") {
-        p_values <- sapply(variables_of_interest, function(var) {
-          boot_results[[var]]$p_val  # Extract bootstrap p-value
-        })
-        names(p_values) <- variables_of_interest
+
+        p_values <- sapply(out, function(x){x$p_val})
+        conf_intervals <- bind_rows(lapply(out, confint, level = 0.95)) %>% 
+          t %>% 
+          as.data.frame %>%
+          setNames(c("2.5 %", "97.5 %")) %>%
+          as.matrix()
       } else {
+        
+        conf_intervals <- confint(model, level = 0.95)
         p_values <- coeftable(model)[, "Pr(>|t|)"]
       }
 
@@ -607,8 +620,14 @@ Analysis <- function(data, periodLength, sensitivity_analysis, depVar) {
     if (periodLength == "1m" && cancers_included %in% c(names(cancer_groups))) {
       # Display model results in a figure where x axis is time periods and y axis is percentage point difference
       coefficients <- coef(model) * conversionFactor # Convert to percentage point scale
-      standard_errors <- se(model) * conversionFactor # Convert to percentage point scale
+      if(sensitivity_analysis == "wildBootstrap"){
 
+        # calculating standard errors directly
+        standard_errors <- sapply(out, function(x){x$point_estimate / x$t_stat}) * conversionFactor # Convert to percentage point scale
+      } else {
+        standard_errors <- se(model) * conversionFactor # Convert to percentage point scale
+      }
+      
       results <- data.frame(
         estimate = coefficients,
         se = standard_errors
@@ -702,19 +721,18 @@ Analysis(baseData, periodLength = "6m", sensitivity_analysis = "noWeights", depV
 Analysis(baseData, periodLength = "1m", sensitivity_analysis = "noWeights", depVar = "refRate")
 Analysis(baseData, periodLength = "6m", sensitivity_analysis = "noWeights", depVar = "refRate") # produces overallResults_6m_noWeights_refRate.csv
 
-# FOR JOSHUA - Once you are ready to work on wild bootstrapping model runs, add your code to Analysis function, remove comments and run the FOUR lines of code below
 Analysis(baseData, periodLength = "1m", sensitivity_analysis = "wildBootstrap", depVar = "delayRate")
 Analysis(baseData, periodLength = "6m", sensitivity_analysis = "wildBootstrap", depVar = "delayRate") # produces overallResults_6m_wildBootstrap_delayRate.csv
 
-# Analysis(baseData, periodLength = "1m", sensitivity_analysis = "wildBootstrap", depVar = "refRate")
-# Analysis(baseData, periodLength = "6m", sensitivity_analysis = "wildBootstrap", depVar = "refRate") # produces overallResults_6m_wildBootstrap_refRate.csv
+Analysis(baseData, periodLength = "1m", sensitivity_analysis = "wildBootstrap", depVar = "refRate")
+Analysis(baseData, periodLength = "6m", sensitivity_analysis = "wildBootstrap", depVar = "refRate") # produces overallResults_6m_wildBootstrap_refRate.csv
 
 # FOR JOSHUA - Once you are ready to work on propensity score model runs, add your code to Analysis function, remove comments and run the FOUR lines of code below
-# Analysis(baseData, periodLength = "1m", sensitivity_analysis = "propensityScore", depVar = "delayRate")
-# Analysis(baseData, periodLength = "6m", sensitivity_analysis = "propensityScore", depVar = "delayRate") # produces overallResults_6m_wildBootstrap_delayRate.csv
+Analysis(baseData, periodLength = "1m", sensitivity_analysis = "propensityScore", depVar = "delayRate")
+Analysis(baseData, periodLength = "6m", sensitivity_analysis = "propensityScore", depVar = "delayRate") # produces overallResults_6m_wildBootstrap_delayRate.csv
 
-# Analysis(baseData, periodLength = "1m", sensitivity_analysis = "propensityScore", depVar = "refRate")
-# Analysis(baseData, periodLength = "6m", sensitivity_analysis = "propensityScore", depVar = "refRate") # produces overallResults_6m_wildBootstrap_refRate.csv
+Analysis(baseData, periodLength = "1m", sensitivity_analysis = "propensityScore", depVar = "refRate")
+Analysis(baseData, periodLength = "6m", sensitivity_analysis = "propensityScore", depVar = "refRate") # produces overallResults_6m_wildBootstrap_refRate.csv
 
 Analysis(baseData, periodLength = "1m", sensitivity_analysis = "14days", depVar = "delayRate")
 Analysis(baseData, periodLength = "6m", sensitivity_analysis = "14days", depVar = "delayRate") # produces overallResults_6m_14days_delayRate.csv
