@@ -540,6 +540,8 @@ Analysis <- function(data, periodLength, sensitivity_analysis, depVar, summary_s
       # P-values: use bootstrap p-values and confidence intervals for wildBootstrap, otherwise use standard
       if (sensitivity_analysis == "wildBootstrap") {
 
+        browser()
+
         p_values <- sapply(out, function(x){x$p_val})
         conf_intervals <- bind_rows(lapply(out, confint, level = 0.95)) %>% 
           t %>% 

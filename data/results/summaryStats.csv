@@ -1,0 +1,19 @@
+"label","value"
+"Table 1, number of providers, participating in trial_6m_delayRate",69
+"Table 1, number of providers, not participating in trial_6m_delayRate",75
+"Table 1, diagnostic delay rate, participating in trial_6m_delayRate",0.279392435994743
+"Table 1, diagnostic delay rate, not participating in trial_6m_delayRate",0.269855313753579
+"for calculation_Table 1, total referrals, participating in trial_6m_delayRate",540190
+"for calculation_Table 1, total referrals, not participating in trial_6m_delayRate",649889
+"Table 1, number of providers, participating in trial_6m_refRate",69
+"Table 1, number of providers, not participating in trial_6m_refRate",75
+"Table 1, diagnostic delay rate, participating in trial_6m_refRate",0.279392435994743
+"Table 1, diagnostic delay rate, not participating in trial_6m_refRate",0.269855313753579
+"for calculation_Table 1, total referrals, participating in trial_6m_refRate",540190
+"for calculation_Table 1, total referrals, not participating in trial_6m_refRate",649889
+"Table 1, number of providers, participating in trial_6m_estWaitTime",69
+"Table 1, number of providers, not participating in trial_6m_estWaitTime",75
+"Table 1, diagnostic delay rate, participating in trial_6m_estWaitTime",0.279392435994743
+"Table 1, diagnostic delay rate, not participating in trial_6m_estWaitTime",0.269855313753579
+"for calculation_Table 1, total referrals, participating in trial_6m_estWaitTime",540190
+"for calculation_Table 1, total referrals, not participating in trial_6m_estWaitTime",649889
