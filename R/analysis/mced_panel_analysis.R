@@ -82,7 +82,7 @@ baseData <- read.csv(paste0(dataDirPath, "base_data.csv"),
                  stringsAsFactors = FALSE)
 
 # After all data has been processed and linked, set up function for separate analyses
-Analysis <- function(data, periodLength, sensitivity_analysis, depVar) {
+Analysis <- function(data, periodLength, sensitivity_analysis, depVar, summary_stats) {
 
   # Create suffix with analysis run parameters to append at end of resulting filenames
   suffix <- paste0("_", periodLength, "_", sensitivity_analysis, "_", depVar)
@@ -160,6 +160,7 @@ Analysis <- function(data, periodLength, sensitivity_analysis, depVar) {
     summary_stats <- summary_stats %>%
       add_row(label = paste0("for calculation_Table 1, total referrals, not participating in trial", suffix),
               value = sum(notParticipating$told_diagnosis_outcome_total))
+    
   }
 
   startingData <- data
@@ -689,61 +690,64 @@ Analysis <- function(data, periodLength, sensitivity_analysis, depVar) {
       select(-Order)  # Remove the Order column after sorting
     write.csv(overall_results, paste0(resultsDirPath, "overallResults", suffix, ".csv"), row.names = FALSE)
   }
+
+  # output the summary statistics
+  return(summary_stats)
+
 }
 
-Analysis(baseData, periodLength = "1m", sensitivity_analysis = "", depVar = "delayRate")
-Analysis(baseData, periodLength = "6m", sensitivity_analysis = "", depVar = "delayRate") # produces overallResults_6m_delayRate.csv
+summary_stats = Analysis(baseData, periodLength = "1m", sensitivity_analysis = "", depVar = "delayRate", summary_stats = summary_stats)
+summary_stats = Analysis(baseData, periodLength = "6m", sensitivity_analysis = "", depVar = "delayRate", summary_stats = summary_stats) # produces overallResults_6m_delayRate.csv
 
-Analysis(baseData, periodLength = "1m", sensitivity_analysis = "", depVar = "refRate")
-Analysis(baseData, periodLength = "6m", sensitivity_analysis = "", depVar = "refRate") # produces overallResults_6m_refRate.csv
+summary_stats = Analysis(baseData, periodLength = "1m", sensitivity_analysis = "", depVar = "refRate", summary_stats = summary_stats)
+summary_stats = Analysis(baseData, periodLength = "6m", sensitivity_analysis = "", depVar = "refRate", summary_stats = summary_stats) # produces overallResults_6m_refRate.csv
 
-Analysis(baseData, periodLength = "1m", sensitivity_analysis = "washout", depVar = "delayRate")
-Analysis(baseData, periodLength = "6m", sensitivity_analysis = "washout", depVar = "delayRate") # produces overallResults_6m_washout_delayRate.csv
+summary_stats = Analysis(baseData, periodLength = "1m", sensitivity_analysis = "washout", depVar = "delayRate", summary_stats = summary_stats)
+summary_stats = Analysis(baseData, periodLength = "6m", sensitivity_analysis = "washout", depVar = "delayRate", summary_stats = summary_stats) # produces overallResults_6m_washout_delayRate.csv
 
-Analysis(baseData, periodLength = "1m", sensitivity_analysis = "washout", depVar = "refRate")
-Analysis(baseData, periodLength = "6m", sensitivity_analysis = "washout", depVar = "refRate") # produces overallResults_6m_washout_refRate.csv
+summary_stats = Analysis(baseData, periodLength = "1m", sensitivity_analysis = "washout", depVar = "refRate", summary_stats = summary_stats)
+summary_stats = Analysis(baseData, periodLength = "6m", sensitivity_analysis = "washout", depVar = "refRate", summary_stats = summary_stats) # produces overallResults_6m_washout_refRate.csv
 
-Analysis(baseData, periodLength = "1m", sensitivity_analysis = "altCovariate", depVar = "delayRate")
-Analysis(baseData, periodLength = "6m", sensitivity_analysis = "altCovariate", depVar = "delayRate") # produces overallResults_6m_altCovariate_delayRate.csv
+summary_stats = Analysis(baseData, periodLength = "1m", sensitivity_analysis = "altCovariate", depVar = "delayRate", summary_stats = summary_stats)
+summary_stats = Analysis(baseData, periodLength = "6m", sensitivity_analysis = "altCovariate", depVar = "delayRate", summary_stats = summary_stats) # produces overallResults_6m_altCovariate_delayRate.csv
 
-Analysis(baseData, periodLength = "1m", sensitivity_analysis = "altCovariate", depVar = "refRate")
-Analysis(baseData, periodLength = "6m", sensitivity_analysis = "altCovariate", depVar = "refRate") # produces overallResults_6m_altCovariate_refRate.csv
+summary_stats = Analysis(baseData, periodLength = "1m", sensitivity_analysis = "altCovariate", depVar = "refRate", summary_stats = summary_stats)
+summary_stats = Analysis(baseData, periodLength = "6m", sensitivity_analysis = "altCovariate", depVar = "refRate", summary_stats = summary_stats) # produces overallResults_6m_altCovariate_refRate.csv
 
-Analysis(baseData, periodLength = "1m", sensitivity_analysis = "noCovariate", depVar = "delayRate")
-Analysis(baseData, periodLength = "6m", sensitivity_analysis = "noCovariate", depVar = "delayRate") # produces overallResults_6m_noCovariate_delayRate.csv
+summary_stats = Analysis(baseData, periodLength = "1m", sensitivity_analysis = "noCovariate", depVar = "delayRate", summary_stats = summary_stats)
+summary_stats = Analysis(baseData, periodLength = "6m", sensitivity_analysis = "noCovariate", depVar = "delayRate", summary_stats = summary_stats) # produces overallResults_6m_noCovariate_delayRate.csv
 
-Analysis(baseData, periodLength = "1m", sensitivity_analysis = "noCovariate", depVar = "refRate")
-Analysis(baseData, periodLength = "6m", sensitivity_analysis = "noCovariate", depVar = "refRate") # produces overallResults_6m_noCovariate_refRate.csv
+summary_stats = Analysis(baseData, periodLength = "1m", sensitivity_analysis = "noCovariate", depVar = "refRate", summary_stats = summary_stats)
+summary_stats = Analysis(baseData, periodLength = "6m", sensitivity_analysis = "noCovariate", depVar = "refRate", summary_stats = summary_stats) # produces overallResults_6m_noCovariate_refRate.csv
 
-Analysis(baseData, periodLength = "1m", sensitivity_analysis = "noWeights", depVar = "delayRate")
-Analysis(baseData, periodLength = "6m", sensitivity_analysis = "noWeights", depVar = "delayRate") # produces overallResults_6m_noWeights_delayRate.csv
+summary_stats = Analysis(baseData, periodLength = "1m", sensitivity_analysis = "noWeights", depVar = "delayRate", summary_stats = summary_stats)
+summary_stats = Analysis(baseData, periodLength = "6m", sensitivity_analysis = "noWeights", depVar = "delayRate", summary_stats = summary_stats) # produces overallResults_6m_noWeights_delayRate.csv
 
-Analysis(baseData, periodLength = "1m", sensitivity_analysis = "noWeights", depVar = "refRate")
-Analysis(baseData, periodLength = "6m", sensitivity_analysis = "noWeights", depVar = "refRate") # produces overallResults_6m_noWeights_refRate.csv
+summary_stats = Analysis(baseData, periodLength = "1m", sensitivity_analysis = "noWeights", depVar = "refRate", summary_stats = summary_stats)
+summary_stats = Analysis(baseData, periodLength = "6m", sensitivity_analysis = "noWeights", depVar = "refRate", summary_stats = summary_stats) # produces overallResults_6m_noWeights_refRate.csv
 
-Analysis(baseData, periodLength = "1m", sensitivity_analysis = "wildBootstrap", depVar = "delayRate")
-Analysis(baseData, periodLength = "6m", sensitivity_analysis = "wildBootstrap", depVar = "delayRate") # produces overallResults_6m_wildBootstrap_delayRate.csv
+summary_stats = Analysis(baseData, periodLength = "1m", sensitivity_analysis = "wildBootstrap", depVar = "delayRate", summary_stats = summary_stats)
+summary_stats = Analysis(baseData, periodLength = "6m", sensitivity_analysis = "wildBootstrap", depVar = "delayRate", summary_stats = summary_stats) # produces overallResults_6m_wildBootstrap_delayRate.csv
 
-Analysis(baseData, periodLength = "1m", sensitivity_analysis = "wildBootstrap", depVar = "refRate")
-Analysis(baseData, periodLength = "6m", sensitivity_analysis = "wildBootstrap", depVar = "refRate") # produces overallResults_6m_wildBootstrap_refRate.csv
+summary_stats = Analysis(baseData, periodLength = "1m", sensitivity_analysis = "wildBootstrap", depVar = "refRate", summary_stats = summary_stats)
+summary_stats = Analysis(baseData, periodLength = "6m", sensitivity_analysis = "wildBootstrap", depVar = "refRate", summary_stats = summary_stats) # produces overallResults_6m_wildBootstrap_refRate.csv
 
-# FOR JOSHUA - Once you are ready to work on propensity score model runs, add your code to Analysis function, remove comments and run the FOUR lines of code below
-Analysis(baseData, periodLength = "1m", sensitivity_analysis = "propensityScore", depVar = "delayRate")
-Analysis(baseData, periodLength = "6m", sensitivity_analysis = "propensityScore", depVar = "delayRate") # produces overallResults_6m_wildBootstrap_delayRate.csv
+summary_stats = Analysis(baseData, periodLength = "1m", sensitivity_analysis = "propensityScore", depVar = "delayRate", summary_stats = summary_stats)
+summary_stats = Analysis(baseData, periodLength = "6m", sensitivity_analysis = "propensityScore", depVar = "delayRate", summary_stats = summary_stats) # produces overallResults_6m_wildBootstrap_delayRate.csv
 
-Analysis(baseData, periodLength = "1m", sensitivity_analysis = "propensityScore", depVar = "refRate")
-Analysis(baseData, periodLength = "6m", sensitivity_analysis = "propensityScore", depVar = "refRate") # produces overallResults_6m_wildBootstrap_refRate.csv
+summary_stats = Analysis(baseData, periodLength = "1m", sensitivity_analysis = "propensityScore", depVar = "refRate", summary_stats = summary_stats)
+summary_stats = Analysis(baseData, periodLength = "6m", sensitivity_analysis = "propensityScore", depVar = "refRate", summary_stats = summary_stats) # produces overallResults_6m_wildBootstrap_refRate.csv
 
-Analysis(baseData, periodLength = "1m", sensitivity_analysis = "14days", depVar = "delayRate")
-Analysis(baseData, periodLength = "6m", sensitivity_analysis = "14days", depVar = "delayRate") # produces overallResults_6m_14days_delayRate.csv
+summary_stats = Analysis(baseData, periodLength = "1m", sensitivity_analysis = "14days", depVar = "delayRate", summary_stats = summary_stats)
+summary_stats = Analysis(baseData, periodLength = "6m", sensitivity_analysis = "14days", depVar = "delayRate", summary_stats = summary_stats) # produces overallResults_6m_14days_delayRate.csv
 
-Analysis(baseData, periodLength = "1m", sensitivity_analysis = "42days", depVar = "delayRate")
-Analysis(baseData, periodLength = "6m", sensitivity_analysis = "42days", depVar = "delayRate") # produces overallResults_6m_42days_delayRate.csv
+summary_stats = Analysis(baseData, periodLength = "1m", sensitivity_analysis = "42days", depVar = "delayRate", summary_stats = summary_stats)
+summary_stats = Analysis(baseData, periodLength = "6m", sensitivity_analysis = "42days", depVar = "delayRate", summary_stats = summary_stats) # produces overallResults_6m_42days_delayRate.csv
 
-Analysis(baseData, periodLength = "1m", sensitivity_analysis = "62days", depVar = "delayRate")
-Analysis(baseData, periodLength = "6m", sensitivity_analysis = "62days", depVar = "delayRate") # produces overallResults_6m_62days_delayRate.csv
+summary_stats = Analysis(baseData, periodLength = "1m", sensitivity_analysis = "62days", depVar = "delayRate", summary_stats = summary_stats)
+summary_stats = Analysis(baseData, periodLength = "6m", sensitivity_analysis = "62days", depVar = "delayRate", summary_stats = summary_stats) # produces overallResults_6m_62days_delayRate.csv
 
-Analysis(baseData, periodLength = "1m", sensitivity_analysis = "", depVar = "estWaitTime")
-Analysis(baseData, periodLength = "6m", sensitivity_analysis = "", depVar = "estWaitTime") # produces overallResults_6m_estWaitTime.csv
+summary_stats = Analysis(baseData, periodLength = "1m", sensitivity_analysis = "", depVar = "estWaitTime", summary_stats = summary_stats)
+summary_stats = Analysis(baseData, periodLength = "6m", sensitivity_analysis = "", depVar = "estWaitTime", summary_stats = summary_stats) # produces overallResults_6m_estWaitTime.csv
 
 write.csv(summary_stats, paste0(resultsDirPath, "summaryStats.csv"), row.names = FALSE)
