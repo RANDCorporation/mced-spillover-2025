@@ -219,8 +219,7 @@ Analysis <- function(data, periodLength, sensitivity_analysis, depVar) {
         group_by(mced_treated) %>%
         filter(periodNum == min(periodNum))
 
-      limits = c(min(append(c(-6.7, trendData$lower_ci))), max(append(trendData$upper_ci, 14.7)))
-
+      limits = c(min(c(-6.7, trendData$lower_ci)), max(trendData$upper_ci, 14.7))
       trendPlot = ggplot(trendData, aes(x = periodNum, y = point_estimate, color = factor(mced_treated))) +
         geom_point(position = position_dodge(width = 0.25), size = 0.35) +
         geom_errorbar(aes(ymin = lower_ci, ymax = upper_ci), width = 0.2, position = position_dodge(width = 0.25)) +
@@ -644,12 +643,13 @@ Analysis <- function(data, periodLength, sensitivity_analysis, depVar) {
       results$upper <- results$estimate + 1.96 * results$se
 
       # Create and export figure plot as image file
+      limits = c(min(c(-6.7, results$lower)), max(results$upper, 35.7))
       plot <- ggplot(results, aes(x = period)) +
         geom_line(aes(y = estimate), size = 1) +
         geom_line(aes(y = lower), linetype = "dotted", size = 0.5) +
         geom_line(aes(y = upper), linetype = "dotted", size = 0.5) +
         scale_y_continuous(labels = label_percent(scale = 1), limits = c(-12.4, 12.4)) +  # Format as percentage
-        scale_x_continuous(limits = c(-6.7, 35.7), breaks = seq(-6, 35, by = 1), expand = c(0, 0)) +
+        scale_x_continuous(limits = c(-6.7, 35.7), breaks = seq(ceiling(limits[1]), floor(limits[2]), by = 1), expand = c(0, 0)) +
         labs(
           x = "Length of time (months) relative to trial start",
           y = "Percentage points"
