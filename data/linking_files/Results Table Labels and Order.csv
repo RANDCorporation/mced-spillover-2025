@@ -1,7 +1,7 @@
 ﻿CancerType,CancerTypeLabel,Order
-exclusively_protocol_not_screened,Primary high-detection group,1
-contains_protocol,Secondary expanded high-detection group,5
-does_not_contain_protocol,Secondary low-detection group,9
+primary_high_detection,Primary high-detection group,1
+sec_exp_high_detection,Secondary expanded high-detection group,5
+sec_low_detection,Secondary low-detection group,9
 Suspected head & neck cancer,   Head & neck,2
 Suspected lung cancer,   Lung,3
 Suspected upper gastrointestinal cancer,   Upper gastrointestinal,4

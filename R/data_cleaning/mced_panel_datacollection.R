@@ -8,20 +8,17 @@
 
 # ### Read in Analytic Data
 
+library(here)
 library(tidyverse)
 library(readxl)
-library(here)
 
 # # # Global parameters start # # #
 
 # Set working directory path
-dirPath <- paste0(here("data"), "/")
+dirPath <- paste0(here("data/"), "/")
 covariateDirPath <- paste0(dirPath, "raw_covariates/")
 linkingDirPath <- paste0(dirPath, "linking_files/")
 outDirPath <- paste0(dirPath, "cleaned_data/")
-
-# Uncomment this and all other lines that refer to workingDirPath if you want to output intermediate data processing files for step-by-step quality checking purposes
-workingDirPath <- paste0(dirPath, "sean_working/")
 
 cancer_groups <- list(
   exclusively_protocol_not_screened = c("Suspected head & neck cancer",
@@ -131,20 +128,16 @@ data = data %>% select(-c(x, x_)) %>%
          ) %>%
   select(date, percentage_told_diagnosis_outcome_within_28_days, everything())
 
-# write.csv(data, file = "data/sean_working/28day_clean.csv")
-
 # Remove all rows except for rows that contain organization-level data (this removes empty 'NA' rows and rows with regional totals)
+# Note: some providers contain just a few rows - these are organizations who rarely refer patients for cancer diagnostic investigation, so only show up for the few months they do refer, many are listed and named in ProviderToCAMappingByHand.csv
 rows_to_keep <- data$Provider.Code != ""
 data <- data[rows_to_keep, ]
-
-# write.csv(data, file = "data/sean_working/28day_clean_.csv")
 
 data_summary_stats <- data_summary_stats %>%
   add_row(
     label = "calculation_Prior to data cleaning and linking, the NHS England Provider-based Cancer Waiting Times dataset reported that XXXXXXXXX patient referrals for suspected cancer resulted in diagnostic resolution during the study period",
     value = sum(data$told_diagnosis_outcome_total, na.rm = TRUE)
   )
-
 
 # Calculate and remove all rows for referrals for breast symptoms where cancer is not initially suspected, referrals missing values, and referrals for non-specific symptoms
 beforeExcl = sum(data$told_diagnosis_outcome_total, na.rm = TRUE)
@@ -174,17 +167,20 @@ data_summary_stats <- data_summary_stats %>%
     value = beforeExcl - afterExcl
   )
 
+beforeExcl = sum(data$told_diagnosis_outcome_total, na.rm = TRUE)
+data <- subset(data, !(suspected_cancer_or_breast_symptomatic %in% c("Suspected children's cancer")))
+afterExcl = sum(data$told_diagnosis_outcome_total, na.rm = TRUE)
+data_summary_stats <- data_summary_stats %>%
+  add_row(
+    label = "calculation_We excluded XXXXX referrals labeled 'Suspected children's cancer' from our analysis",
+    value = beforeExcl - afterExcl
+  )
+
 data_summary_stats <- data_summary_stats %>%
   add_row(
     label = "calculation_After these exclusions, XXXX referrals remained in our dataset",
     value = afterExcl
   )
-
-# Export processed file for quality checking purposes
-# write.csv(data, file = paste0(workingDirPath, "28day_clean_test1.csv"))
-
-# Export processed file for quality checking purposes
-# write.csv(data, file = paste0(workingDirPath, "28day_clean_test1.csv"))
 
 # # # Linking data to cancer alliances start # # #
 
@@ -197,7 +193,6 @@ CombineSuffixColumns <- function(inDf, checkCols = TRUE) {
   for (col in col_names) {
     # Check if the column name ends with .x or .y
     if (grepl("\\.x$", col)) {
-      print(col)
       # Get the base name of the column
       baseCol <- sub("\\.[xy]$", "", col)
       xCol <- col
@@ -214,7 +209,6 @@ CombineSuffixColumns <- function(inDf, checkCols = TRUE) {
         if (any(inDf$code_mismatch)) {
           subset_df <- inDf %>%
             filter(code_mismatch == TRUE)
-          # write.csv(subset_df, file = paste0(workingDirPath, "mismatched.csv"))
           stop("Mismatched values found in data")
         }
       }
@@ -256,14 +250,8 @@ LinkToCA <- function(df, dfName, check = TRUE) {
   # Merge dataframe containing linked ICB codes into main dataset
   df <- merge(df, trustToICB, by = 'Provider.Code', all.x = TRUE)
 
-  # Export processed file for quality checking purposes
-  # write.csv(df, file = paste0(workingDirPath, dfName, "link1.csv"))
-
   # Remove duplicate .x and .y post-merge columns
   df <- CombineSuffixColumns(df, check)
-
-  # Export processed file for quality checking purposes
-  # write.csv(df, file = paste0(workingDirPath, dfName, "link1a.csv"))
 
   # Remove unnecessary ICB-level columns from dataframe
   icbToAlliance <- icbToAlliance[, -which(names(icbToAlliance) %in% c("Sub.ICB.E.Code", "SICBL22CDH", "SICBL22NM", "ICB.E.code"))]
@@ -276,9 +264,6 @@ LinkToCA <- function(df, dfName, check = TRUE) {
   # Remove duplicate .x and .y post-merge columns
   df <- CombineSuffixColumns(df, check)
 
-  # Export processed file for quality checking purposes
-  # write.csv(df, file = paste0(workingDirPath, dfName, "link2.csv"))
-
   # Third input file concerns providers that did not link to Cancer Alliances via above linking files.
   # These providers had to be linked to Cancer Alliances manually, based on publicly available information (see "Source" column in input file)
   # Manual linking was conducted on May 23, 2024.
@@ -290,18 +275,9 @@ LinkToCA <- function(df, dfName, check = TRUE) {
   # Remove duplicate .x and .y post-merge columns
   df <- CombineSuffixColumns(df, check)
 
-  # Export processed file for quality checking purposes
-  # write.csv(df, file = paste0(workingDirPath, dfName, "link4.csv"))
-
   # Remove rows for manually linked providers (private providers) that operate in multiple Cancer Alliance regions and so can't be directly linked to any single alliance
   df <- df %>%
     filter(Cancer.Alliance != "multiple" | is.na(Cancer.Alliance))
-
-  # Export processed file for quality checking purposes
-  # write.csv(df, file = paste0(workingDirPath, dfName, "link5.csv"))
-
-  # Export processed file for quality checking purposes
-  # write.csv(df, file = paste0(workingDirPath, dfName, "link6.csv"))
 
   # Load manually created crosswalk file that indicates which Cancer Alliances participated in NHS-Galleri trial (n=8) and which did not participate (n=13)
   # Identification of treated Cancer Alliances is from NHS Galleri published protocol, Figure 2
@@ -313,9 +289,6 @@ LinkToCA <- function(df, dfName, check = TRUE) {
 
   # Remove duplicate .x and .y post-merge columns
   df <- CombineSuffixColumns(df, check)
-
-  # Export processed file for quality checking purposes
-  # write.csv(df, file = paste0(workingDirPath, dfName, "link7.csv"))
 
   return(df)
 }
@@ -336,9 +309,6 @@ data_summary_stats <- data_summary_stats %>%
     value = after
   )
 
-# Export processed file for quality checking purposes
-# write.csv(data, file = paste0(workingDirPath, "28day_clean_test2.csv"))
-
 # # # Linking data to cancer alliances end # # #
 
 
@@ -350,9 +320,6 @@ data_summary_stats <- data_summary_stats %>%
 # # Pre-processing before using as input here: opened file in excel, navigated to Table 5 (Sheet: "5. All Staff, NHSE & Org - FTE") and then saved as .csv file
 
 staff = read.csv(paste0(covariateDirPath, "NHS Workforce Statistics, March 2025 England and Organisation.csv"), skip=4)
-
-# Export processed file for quality checking purposes
-# write.csv(staff, file = paste0(workingDirPath, "staff0.csv"))
 
 # Remove all rows except for rows that contain organization-level data (this removes empty regional subheader rows and informational footer)
 rows_to_keep <- staff$Organisation.code != ""
@@ -370,9 +337,6 @@ staff <- staff %>%
 staff <- staff %>%
   rename(Provider.Code = Organisation.code)
 
-# Export processed file for quality checking purposes
-# write.csv(staff, file = paste0(workingDirPath, "staff.csv"))
-
 # Transform dataframe from wide provider level dataset to long provider-month level dataset
 staff <- staff %>%
   pivot_longer(
@@ -385,20 +349,21 @@ staff <- staff %>%
 staff <- staff %>%
   mutate(date = format(dmy(paste("01", date, sep=".")), "%Y_%m_%d"))
 
-# Export processed file for quality checking purposes
-# write.csv(staff, file = paste0(workingDirPath, "staff1.csv"))
+# Convert the date column to Date format
+staff$dateFormat <- as.Date(staff$date, format = "%Y_%m_%d")
+# Filter to keep only records during the study period from April 2021 through September 2024
+staff <- staff[staff$dateFormat >= as.Date("2021-04-01") &
+                    staff$dateFormat <= as.Date("2024-09-30"), ]
+# drop formatted date columm
+staff <- staff[, !names(staff) %in% c("dateFormat")]
 
 # Link the staff provider-level data to Cancer Alliances
+# Note - rows associated with 2 provider codes are dropped during this step because they provide services across multiple regions]
 staff <- LinkToCA(staff, "staff")
-
-# Export processed file for quality checking purposes
-# write.csv(staff, file = paste0(workingDirPath, "staff2.csv"))
 
 # Merge dataframe containing total staff numbers by provider and month into main dataframe
 data <- merge(data, staff, by = c('Provider.Code', 'date'), all.x = TRUE)
-
-# Export processed file for quality checking purposes
-# write.csv(data, file = paste0(workingDirPath, "28day_clean_test2a.csv"))
+# Note: Rows associated with 6 providers have no staff numbers associated with them - these are providers that were linked manually to cancer alliances and are not included in the original staff numbers file
 
 # Remove duplicate .x and .y post-merge columns
 data <- CombineSuffixColumns(data)
@@ -430,7 +395,7 @@ bedDfs = list(
 )
 
 # Generalized function to process COVID-related data (absences or beds)
-ProcessCovidData <- function(dataFramesList, valueColumnName, workingDirPath = NULL) {
+ProcessCovidData <- function(dataFramesList, valueColumnName) {
   # Process each dataframe in the list
   processedDfs <- lapply(seq_along(dataFramesList), function(i) {
     df <- dataFramesList[[i]]
@@ -461,25 +426,12 @@ ProcessCovidData <- function(dataFramesList, valueColumnName, workingDirPath = N
         select(-"NHS England Region")
     }
 
-    # Export with unique filename using index (if workingDirPath provided)
-    if (!is.null(workingDirPath)) {
-      write.csv(df, file = paste0(workingDirPath, valueColumnName, "1_", i, ".csv"))
-    }
-
     # Rename organizational UID column
     df <- df %>%
       rename(Provider.Code = Code)
 
-    if (!is.null(workingDirPath)) {
-      write.csv(df, file = paste0(workingDirPath, valueColumnName, "1a_", i, ".csv"))
-    }
-
     # Remove rows with NA Provider.Code
     df <- df[!is.na(df$Provider.Code), ]
-
-    if (!is.null(workingDirPath)) {
-      write.csv(df, file = paste0(workingDirPath, valueColumnName, "1b_", i, ".csv"))
-    }
 
     # Transform dataframe from wide to long format
     df <- df %>%
@@ -489,10 +441,6 @@ ProcessCovidData <- function(dataFramesList, valueColumnName, workingDirPath = N
         values_to = valueColumnName
       )
 
-    if (!is.null(workingDirPath)) {
-      write.csv(df, file = paste0(workingDirPath, valueColumnName, "1c_", i, ".csv"))
-    }
-
     return(df)
   })
 
@@ -501,11 +449,6 @@ ProcessCovidData <- function(dataFramesList, valueColumnName, workingDirPath = N
 
   # Combine all dataframes into single dataset
   combinedData <- Reduce(rbind, processedDfs)
-
-  # Export processed file for quality checking purposes
-  if (!is.null(workingDirPath)) {
-    write.csv(combinedData, file = paste0(workingDirPath, valueColumnName, "2.csv"))
-  }
 
   # Convert date column to proper Date format
   combinedData$date <- as.Date(combinedData$date, format = "%Y_%m_%d")
@@ -522,37 +465,40 @@ ProcessCovidData <- function(dataFramesList, valueColumnName, workingDirPath = N
     ) %>%
     mutate(date = format(date, "%Y_%m_%d"))
 
-  # Export processed file for quality checking purposes
-  if (!is.null(workingDirPath)) {
-    write.csv(combinedData, file = paste0(workingDirPath, valueColumnName, "3.csv"))
-  }
-
   # Link provider-level data to Cancer Alliances
-  # Note: This assumes LinkToCA function is available in the environment
   # Do not throw error for mismatched post-merge columns
   combinedData <- LinkToCA(combinedData, valueColumnName, check = FALSE)
-
-  # Export processed file for quality checking purposes
-  if (!is.null(workingDirPath)) {
-    write.csv(combinedData, file = paste0(workingDirPath, valueColumnName, "4.csv"))
-  }
 
   return(combinedData)
 }
 
-# Usage examples:
-
 # Process absences data
 absences <- ProcessCovidData(
   dataFramesList = absencesDfs,
-  valueColumnName = "totalAbsent",
+  valueColumnName = "totalAbsent"
 )
+
+# Convert the date column to Date format for filtering purposes
+absences$dateFormat <- as.Date(absences$date, format = "%Y_%m_%d")
+# Filter to keep only records during the study period from April 2021 through September 2024
+absences <- absences[absences$dateFormat >= as.Date("2021-04-01") &
+                       absences$dateFormat <= as.Date("2024-09-30"), ]
+# drop formatted date columm
+absences <- absences[, !names(absences) %in% c("dateFormat")]
 
 # Process beds data
 beds <- ProcessCovidData(
   dataFramesList = bedDfs,
-  valueColumnName = "totalBedsOccupied",
+  valueColumnName = "totalBedsOccupied"
 )
+
+# Convert the date column to Date format for filtering purposes
+beds$dateFormat <- as.Date(beds$date, format = "%Y_%m_%d")
+# Filter to keep only records during the study period from April 2021 through September 2024
+beds <- beds[beds$dateFormat >= as.Date("2021-04-01") &
+               beds$dateFormat <= as.Date("2024-09-30"), ]
+# drop formatted date columm
+beds <- beds[, !names(beds) %in% c("dateFormat")]
 
 # Merge dataframe containing total absent staff numbers by provider and month into main dataframe
 data <- merge(data, absences, by = c('Provider.Code', 'date'), all.x = TRUE)
@@ -568,9 +514,6 @@ data <- merge(data, beds, by = c('Provider.Code', 'date'), all.x = TRUE)
 # Do not throw error for mismatched post-merge columns; Sean checked these by hand 28 July 2024 and all are fine
 data <- CombineSuffixColumns(data, check = FALSE)
 
-# Export processed file for quality checking purposes
-# write.csv(data, file = paste0(workingDirPath, "28day_clean_test2b.csv"))
-
 # Convert string-format numbers into numeric data
 data <- data %>%
   mutate(totalAbsent = as.numeric(gsub(",", "", totalAbsent))) %>%
@@ -580,7 +523,7 @@ data <- data %>%
   mutate(totalStaff = as.numeric(gsub(",", "", totalStaff)))
 
 # Exclude total staff numbers for providers for which we don't have absence numbers, and vice-versa
-# This only excludes a very small number of staff and absences (<1%) from a couple providers
+# Note: This only excludes a very small number of staff and absences (<1%) from a couple providers
 data <- data %>%
   mutate(totalStaff = if_else(is.na(totalAbsent), NA_real_, totalStaff)) %>%
   mutate(totalAbsent = if_else(is.na(totalStaff), NA_real_, totalAbsent))
@@ -612,17 +555,11 @@ for (group_name in names(cancer_groups)) {
       label = paste0("calculation_Total referrals for ", group_name, " cancers: ", paste(cancer_groups[[group_name]], collapse = ", ")),
       value = group_sum
     )
-  print("here")
-  print(group_name)
-  print(paste(cancer_groups[[group_name]], collapse = ", "))
 }
 
 # # # Calculation end # # #
 
 # Export processed file
-if(!file.exists(outDirPath)){
-  dir.create(outDirPath)
-}
 write.csv(data, file = paste0(outDirPath, "base_data.csv"))
 
 write.csv(data_summary_stats, paste0(outDirPath, "dataSummaryStats.csv"), row.names = FALSE)

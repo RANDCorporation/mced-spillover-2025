@@ -9,49 +9,26 @@
 # ### Read in Analytic Data
 
 library(tidyverse)
-library(readxl)
 library(fixest)
 library(scales)
 library(here)
 library(fwildclusterboot)
 
 # fwildclusterboot is no longer available on cran, so I installed the most recent version from the cran archive.
-# it's important you use this line to install! results for this package are not always backwards compatible.
+# it's important you use this line to install, as results for this package are not always backwards compatible.
 # remotes::install_version("fwildclusterboot", "0.13.0")
 
-set.seed(20251023)
+# This sets the seed of the package used by fwildclusterboot to ensure reproducibility
+dqrng::dqset.seed(20251023)
 
 # # # Global parameters start # # #
 
 # Set working directory path
-dirPath <- paste0(here("data"), "/")
+dirPath <- paste0(here("data/"), "/")
 dataDirPath <- paste0(dirPath, "cleaned_data/")
 covariateDirPath <- paste0(dirPath, "raw_covariates/")
 linkingDirPath <- paste0(dirPath, "linking_files/")
 resultsDirPath <- paste0(dirPath, "results/")
-
-# Uncomment this and all other lines that refer to workingDirPath if you want to output intermediate data processing files for step-by-step quality checking purposes
-# workingDirPath <- paste0(dirPath, "sean_working/")
-
-cancer_groups <- list(
-  exclusively_protocol_not_screened = c("Suspected head & neck cancer",
-                                        "Suspected lung cancer",
-                                        "Suspected upper gastrointestinal cancer"),
-  contains_protocol = c("Suspected lower gastrointestinal cancer",
-                        "Suspected head & neck cancer",
-                        "Suspected lung cancer",
-                        "Suspected upper gastrointestinal cancer",
-                        "Suspected gynaecological cancer",
-                        "Suspected haematological malignancies (excluding acute leukaemia)",
-                        "Suspected urological malignancies (excluding testicular)"),
-  does_not_contain_protocol = c("Suspected skin cancer",
-                                "Suspected breast cancer",
-                                "Suspected sarcoma",
-                                "Suspected brain/central nervous system tumours",
-                                "Suspected testicular cancer",
-                                "Suspected acute leukaemia",
-                                "Suspected other cancer")
-)
 
 cancer_types_to_loop_through <- c(
   "Suspected breast cancer",
@@ -70,25 +47,43 @@ cancer_types_to_loop_through <- c(
   "Suspected urological malignancies (excluding testicular)"
 )
 
+cancer_groups <- list(
+  primary_high_detection = c("Suspected head & neck cancer",
+                                        "Suspected lung cancer",
+                                        "Suspected upper gastrointestinal cancer"),
+  sec_exp_high_detection = c("Suspected lower gastrointestinal cancer",
+                        "Suspected head & neck cancer",
+                        "Suspected lung cancer",
+                        "Suspected upper gastrointestinal cancer",
+                        "Suspected gynaecological cancer",
+                        "Suspected haematological malignancies (excluding acute leukaemia)",
+                        "Suspected urological malignancies (excluding testicular)"),
+  sec_low_detection = c("Suspected skin cancer",
+                                "Suspected breast cancer",
+                                "Suspected sarcoma",
+                                "Suspected brain/central nervous system tumours",
+                                "Suspected testicular cancer",
+                                "Suspected acute leukaemia",
+                                "Suspected other cancer")
+)
+
 cancer_types_to_loop_through <- c(cancer_types_to_loop_through, names(cancer_groups))
 
 # # # Global parameters end # # #
 
-summary_stats <- data.frame(label = character(), value = numeric())
-
-# Import data file that was output from mced_panel_datacollection.R
+# Import dataset file that was output from mced_panel_datacollection.R
 baseData <- read.csv(paste0(dataDirPath, "base_data.csv"),
                  row.names = 1,
                  stringsAsFactors = FALSE)
 
-# After all data has been processed and linked, set up function for separate analyses
-Analysis <- function(data, periodLength, sensitivity_analysis, depVar, summary_stats) {
+# Set up function for separate analyses
+Analysis <- function(data, periodLength, sensitivity_analysis, depVar) {
 
   # Create suffix with analysis run parameters to append at end of resulting filenames
   suffix <- paste0("_", periodLength, "_", sensitivity_analysis, "_", depVar)
   suffix <- gsub("__", "_", suffix) # if no sensitivity analysis, replace double underscore with single
 
-  # Set conversion factor for result, no scaling at all for referral numbers, scale by 100 (%) for delay rate
+  # Set conversion factor for result, no scaling at all for referral or estimated wait time numbers, scale by 100 (%) for delay rate
   if (depVar %in% c("refRate", "estWaitTime")) {
     conversionFactor <- 1
   }
@@ -124,12 +119,12 @@ Analysis <- function(data, periodLength, sensitivity_analysis, depVar, summary_s
   # Create column that holds period number as a string (for use in grouping operation)
   data$period = as.character(data$periodNum)
 
-  # Export processed file for quality checking purposes
-  # write.csv(data, file = paste0(workingDirPath, "28day_clean_test_", suffix, ".csv"))
-
   # # # Generate summary stats for Table 1 # # #
   # Use data aggregated up to 6 month periods
-  if (periodLength == "6m" && sensitivity_analysis == "") {
+  if (periodLength == "6m" && sensitivity_analysis == "" && depVar == "delayRate") {
+
+    summary_stats <- data.frame(label = character(), value = numeric())
+
     # Just use data from the first 6m (pre-trial) period in the dataset
     preTrial <- subset(data, (periodNum == 1))
 
@@ -146,37 +141,103 @@ Analysis <- function(data, periodLength, sensitivity_analysis, depVar, summary_s
               value = n_distinct(notParticipating$Provider.Code))
 
     summary_stats <- summary_stats %>%
-      add_row(label = paste0("Table 1, diagnostic delay rate, participating in trial", suffix),
-              value = sum(participating$told_diagnosis_outcome_after_28_days) / sum(participating$told_diagnosis_outcome_total))
-
-    summary_stats <- summary_stats %>%
-      add_row(label = paste0("Table 1, diagnostic delay rate, not participating in trial", suffix),
-              value = sum(notParticipating$told_diagnosis_outcome_after_28_days) / sum(notParticipating$told_diagnosis_outcome_total))
-
-    summary_stats <- summary_stats %>%
       add_row(label = paste0("for calculation_Table 1, total referrals, participating in trial", suffix),
               value = sum(participating$told_diagnosis_outcome_total))
 
     summary_stats <- summary_stats %>%
       add_row(label = paste0("for calculation_Table 1, total referrals, not participating in trial", suffix),
               value = sum(notParticipating$told_diagnosis_outcome_total))
-    
+
+    # To count staff numbers... first group rows across cancer sites at the Provider.Code and month level
+    # Done in this sequence in order to only count staff numbers once per provider-month (and not multiple times for each cancer site)
+    dataGrouped <- preTrial %>%
+      group_by(Provider.Code, monthNum) %>%
+      summarise(
+        num_not_told_diagnosis_outcome_within_28_days = sum(num_not_told_diagnosis_outcome_within_28_days),
+        told_diagnosis_outcome_total = sum(told_diagnosis_outcome_total),
+        told_diagnosis_outcome_within_14_days = sum(told_diagnosis_outcome_within_14_days),
+        in_15_to_28_days = sum(in_15_to_28_days),
+        told_diagnosis_outcome_in_29_to_42_days = sum(told_diagnosis_outcome_in_29_to_42_days),
+        told_diagnosis_outcome_in_43_to_62_days = sum(told_diagnosis_outcome_in_43_to_62_days),
+        told_diagnosis_outcome_after_62_days = sum(told_diagnosis_outcome_after_62_days),
+        mced_treated = mean(mced_treated),
+        periodNum = mean(periodNum),
+        period = first(period),
+        Cancer.Alliance = first(Cancer.Alliance),
+        totalStaff = first(totalStaff),
+        totalAbsent = first(totalAbsent),
+        totalBedsOccupied = first(totalBedsOccupied),
+        date = first(date)
+      )
+
+    # Group data (which had been at provider- and month-level) up to the cancer alliance- and month-level
+    # Done in this sequence in order to sum staff numbers across providers
+    dataGrouped <- dataGrouped %>%
+      group_by(Cancer.Alliance, monthNum) %>%
+      summarise(
+        num_not_told_diagnosis_outcome_within_28_days = sum(num_not_told_diagnosis_outcome_within_28_days),
+        told_diagnosis_outcome_total = sum(told_diagnosis_outcome_total),
+        told_diagnosis_outcome_within_14_days = sum(told_diagnosis_outcome_within_14_days),
+        in_15_to_28_days = sum(in_15_to_28_days),
+        told_diagnosis_outcome_in_29_to_42_days = sum(told_diagnosis_outcome_in_29_to_42_days),
+        told_diagnosis_outcome_in_43_to_62_days = sum(told_diagnosis_outcome_in_43_to_62_days),
+        told_diagnosis_outcome_after_62_days = sum(told_diagnosis_outcome_after_62_days),
+        mced_treated = mean(mced_treated),
+        period = first(period),
+        periodNum = mean(periodNum),
+        totalStaff = sum(totalStaff, na.rm = TRUE),
+        totalAbsent = sum(totalAbsent, na.rm = TRUE),
+        totalBedsOccupied = sum(totalBedsOccupied, na.rm = TRUE),
+        date = first(date)
+      )
+
+    # Group data (which had been at Cancer.Alliance- and month-level) up to the cancer alliance- and period-level
+    # Done in this sequence in order to sum staff numbers across months
+    dataGrouped <- dataGrouped %>%
+      group_by(Cancer.Alliance, period) %>%
+      summarise(
+        num_not_told_diagnosis_outcome_within_28_days = sum(num_not_told_diagnosis_outcome_within_28_days),
+        told_diagnosis_outcome_total = sum(told_diagnosis_outcome_total),
+        told_diagnosis_outcome_within_14_days = sum(told_diagnosis_outcome_within_14_days),
+        in_15_to_28_days = sum(in_15_to_28_days),
+        told_diagnosis_outcome_in_29_to_42_days = sum(told_diagnosis_outcome_in_29_to_42_days),
+        told_diagnosis_outcome_in_43_to_62_days = sum(told_diagnosis_outcome_in_43_to_62_days),
+        told_diagnosis_outcome_after_62_days = sum(told_diagnosis_outcome_after_62_days),
+        mced_treated = mean(mced_treated),
+        periodNum = mean(periodNum),
+        totalStaff = mean(totalStaff, na.rm = TRUE),
+        totalAbsent = mean(totalAbsent, na.rm = TRUE),
+        totalBedsOccupied = mean(totalBedsOccupied, na.rm = TRUE),
+        date = first(date)
+      )
+
+    # Separate grouped data into participating and non-participating cancer alliances
+    participating <- subset(dataGrouped, (mced_treated == 1))
+    notParticipating <- subset(dataGrouped, (mced_treated == 0))
+
+    summary_stats <- summary_stats %>%
+      add_row(label = paste0("Table 1, number of staff, participating in trial", suffix),
+              value = sum(participating$totalStaff, na.rm = TRUE))
+
+    summary_stats <- summary_stats %>%
+      add_row(label = paste0("Table 1, number of staff, not participating in trial", suffix),
+              value = sum(notParticipating$totalStaff, na.rm = TRUE))
+
+    write.csv(summary_stats, paste0(resultsDirPath, "summaryStats.csv"), row.names = FALSE)
   }
 
   startingData <- data
 
   for (cancers_included in c(cancer_types_to_loop_through)) {
-    if(sensitivity_analysis != "" && cancers_included != "exclusively_protocol_not_screened") {
+    # Only run 1m analyses to produce monthly figures for the main cancer groups, primary delay rate outcome, and main analysis
+    if (periodLength == "1m" && (!(cancers_included %in% c(names(cancer_groups))))) {
       next
     }
 
-    suffix2 <- paste0("_", periodLength, "_", sensitivity_analysis, depVar, "_", gsub("/", "", cancers_included))
-
+    # Print cancer group or cancer name that is focus of this analysis iteration
     print(cancers_included)
 
-    if(sensitivity_analysis != "" && !(cancers_included %in% names(cancer_groups))) {
-      print(suffix2)
-    }
+    suffix2 <- paste0("_", periodLength, "_", sensitivity_analysis, depVar, "_", gsub("/", "", cancers_included))
 
     data <- startingData
 
@@ -187,11 +248,8 @@ Analysis <- function(data, periodLength, sensitivity_analysis, depVar, summary_s
       data <- subset(data, (suspected_cancer_or_breast_symptomatic == cancers_included))
     }
 
-    # Export processed file for quality checking purposes
-    # write.csv(data, file = paste0(workingDirPath, "28day_clean_test6", suffix2, ".csv"))
-
     # For monthly analyses and primary cancer groups, produce trend figures using unadjusted values
-    if (periodLength == "1m" && cancers_included %in% c(names(cancer_groups)) && sensitivity_analysis == "") {
+    if (periodLength == "1m" && cancers_included %in% c(names(cancer_groups))) {
       trendData<-data %>%
         group_by(mced_treated, period) %>%
         summarise(
@@ -220,11 +278,10 @@ Analysis <- function(data, periodLength, sensitivity_analysis, depVar, summary_s
         group_by(mced_treated) %>%
         filter(periodNum == min(periodNum))
 
-      limits = c(min(c(-6.7, trendData$lower_ci)), max(trendData$upper_ci, 14.7))
       trendPlot = ggplot(trendData, aes(x = periodNum, y = point_estimate, color = factor(mced_treated))) +
         geom_point(position = position_dodge(width = 0.25), size = 0.35) +
         geom_errorbar(aes(ymin = lower_ci, ymax = upper_ci), width = 0.2, position = position_dodge(width = 0.25)) +
-        scale_x_continuous(limits = limits, breaks = seq(ceiling(limits[1]), floor(limits[2]), by = 1), expand = c(0, 0)) +
+        scale_x_continuous(limits = c(-6.7, 14.7), breaks = seq(-6, 14, by = 1), expand = c(0, 0)) +
         scale_y_continuous(labels = scales::percent_format(), limits = c(0.10, 0.50)) + # Set limits to start at 0%
         labs(
           x = "Length of time (months) relative to trial start",
@@ -263,9 +320,6 @@ Analysis <- function(data, periodLength, sensitivity_analysis, depVar, summary_s
         date = first(date)
       )
 
-    # Export processed file for quality checking purposes
-    # write.csv(dataGrouped, file = paste0(workingDirPath, "28day_clean_grouped0", suffix2, ".csv"))
-
     # Group data (which had been at provider- and month-level) up to the cancer alliance- and month-level
     # Done in this sequence in order to sum staff and absence numbers across providers
     dataGrouped <- dataGrouped %>%
@@ -287,9 +341,6 @@ Analysis <- function(data, periodLength, sensitivity_analysis, depVar, summary_s
         date = first(date)
       )
 
-    # Export processed file for quality checking purposes
-    # write.csv(dataGrouped, file = paste0(workingDirPath, "28day_clean_groupedA", suffix2, ".csv"))
-
     # Group data (which had been at Cancer.Alliance- and month-level) up to the cancer alliance- and period-level
     # Done in this sequence in order to sum staff and absence numbers across months
     dataGrouped <- dataGrouped %>%
@@ -310,25 +361,6 @@ Analysis <- function(data, periodLength, sensitivity_analysis, depVar, summary_s
         date = first(date)
       )
 
-    # # # Generate more summary stats for Table 1 # # #
-    # Use data aggregated up to 6 month periods, for all cancer referrals
-    if (periodLength == "6m" && cancers_included == "allCancers" && sensitivity_analysis == "") {
-      # Just use data from the first 6m (pre-trial) period in the dataset
-      preTrial <- subset(dataGrouped, (periodNum == 1))
-
-      # Separate data into participating and non-participating cancer alliances
-      participating <- subset(preTrial, (mced_treated == 1))
-      notParticipating <- subset(preTrial, (mced_treated == 0))
-
-      summary_stats <- summary_stats %>%
-        add_row(label = paste0("Table 1, number of staff, participating in trial", suffix),
-                value = sum(participating$totalStaff))
-
-      summary_stats <- summary_stats %>%
-        add_row(label = paste0("Table 1, number of staff, not participating in trial", suffix),
-                value = sum(notParticipating$totalStaff))
-    }
-
     # calculating percentage of patients facing diagnostic delay
     dataGrouped$percentage_not_told_diagnosis_outcome_within_28_days = (dataGrouped$num_not_told_diagnosis_outcome_within_28_days / dataGrouped$told_diagnosis_outcome_total)
 
@@ -337,8 +369,8 @@ Analysis <- function(data, periodLength, sensitivity_analysis, depVar, summary_s
     dataGrouped$percentage_not_told_diagnosis_outcome_within_42_days = ((dataGrouped$told_diagnosis_outcome_in_43_to_62_days + dataGrouped$told_diagnosis_outcome_after_62_days) / dataGrouped$told_diagnosis_outcome_total)
     dataGrouped$percentage_not_told_diagnosis_outcome_within_62_days = (dataGrouped$told_diagnosis_outcome_after_62_days / dataGrouped$told_diagnosis_outcome_total)
 
-    # Calculate and export unadjusted rates of diagnostic delay for treated and untreated groups of regions
-    if (periodLength != "1m" && depVar == "delayRate" && sensitivity_analysis == "" && cancers_included %in% names(cancer_groups)) {
+    # Calculate and export unadjusted diagnostic delay rates for treated and untreated groups of regions
+    if (periodLength == "6m" && depVar == "delayRate" && sensitivity_analysis == "" && cancers_included %in% names(cancer_groups)) {
       dataGroupedParticipating <- dataGrouped %>%
         group_by(mced_treated, period) %>%
         summarise(
@@ -361,21 +393,17 @@ Analysis <- function(data, periodLength, sensitivity_analysis, depVar, summary_s
     }
 
     # load population by cancer alliance region data from 2020 which is used to calculate per 100000 population rates
-    # this file is
+    # this file was downloaded on July 22, 2024 from https://digital.nhs.uk/binaries/content/assets/website-assets/national-disease-registration-service/ncras/data-outputs/cancer-prevalence-statistics-england-2020_download.xlsx
+    # pre-processing involved calculating regional population data using cancer prevalence counts and per population rates, then saving as csv
     file_path <- paste0(covariateDirPath, "Cancer+Prevalence+Statistics+England+2020_download_popByCA.csv")
-    pop_df <- read.csv(file_path, skip=1)
+    pop_df <- read.csv(file_path, skip = 1)
 
     dataGrouped <- merge(dataGrouped, pop_df[, c("Cancer.Alliance", "population")],
                          by = "Cancer.Alliance", all.x = TRUE)
 
+    # Calculate rate of referrals per 100,000 population
     if (depVar == 'refRate') {
-      # write.csv(dataGrouped, file = paste0(workingDirPath, "28day_clean_groupedC", suffix2, ".csv"))
-
       dataGrouped$ref_rate <- (dataGrouped$told_diagnosis_outcome_total / dataGrouped$population) * 100000
-
-      # write.csv(dataGrouped, file = paste0(workingDirPath, "28day_clean_groupedD", suffix2, ".csv"))
-
-      print(nrow(dataGrouped))
     }
 
     # estimate average wait times from counts within the 5 wait times categories: 0-14; 15-28; 28-42; 43-62; 62+ days
@@ -389,16 +417,13 @@ Analysis <- function(data, periodLength, sensitivity_analysis, depVar, summary_s
       (dataGrouped$told_diagnosis_outcome_after_62_days * 72.5) # Upper bound of category set to 82; (63+82)/2 = 72.5 days
     dataGrouped$est_wait_time <- (dataGrouped$est_wait_time / dataGrouped$told_diagnosis_outcome_total)
 
-    # Export processed file for quality checking purposes
-    # write.csv(dataGrouped, file = paste0(workingDirPath, "28day_clean_groupedB", suffix2, ".csv"))
-
     # calculating percentage of staff absent
     dataGrouped$percentageAbsent = (dataGrouped$totalAbsent / dataGrouped$totalStaff)
 
     # calculating rate of bed occupancy by COVID-19 patients by 100000 population
     dataGrouped$bedOccupancyRate <- (dataGrouped$totalBedsOccupied / dataGrouped$population) * 100000
 
-    # create a dummy variable for each time period, set to 1 when a row is in that time period and is for a cancer alliance participating in the trial
+    # create a dummy variable for each time period, set to 1 when a row is in that time period and is for a cancer alliance region participating in the trial
     dataGrouped <- dataGrouped %>%
       mutate(dummy = ifelse(mced_treated == 1, 1, 0)) %>%
       pivot_wider(names_from = periodNum, values_from = dummy,
@@ -419,13 +444,12 @@ Analysis <- function(data, periodLength, sensitivity_analysis, depVar, summary_s
     # Get all of the names of the dummy period variables
     dummy_vars <- names(dataGrouped)[grepl("dummy_period_", names(dataGrouped))]
 
-    # Export processed file for quality checking purposes
-    # write.csv(dataGrouped, file = paste0(workingDirPath, "28day_clean_test_grouped", suffix2, ".csv"))
-
-    covariate <- "`percentageAbsent` + " # set covariate for all but two sensitivity analyses to be percentage staff absent
+    # set covariate for all but two sensitivity analyses to be percentage staff absent
+    covariate <- "`percentageAbsent` + "
 
     if (sensitivity_analysis == "altCovariate") {
       covariate <- "`bedOccupancyRate` + " }
+
     else if (sensitivity_analysis == "noCovariate") {
       covariate <- "" }
 
@@ -451,105 +475,99 @@ Analysis <- function(data, periodLength, sensitivity_analysis, depVar, summary_s
       formula_str <- paste("est_wait_time ~ ", covariate, paste(dummy_vars, collapse = " + "), "| Cancer.Alliance + period")
       }
 
-    # Run two way fixed effects model, weighted by total number of referrals that get diagnostic outcome, with errors clustered at cancer alliance level
-    if (sensitivity_analysis != "wildBootstrap" && sensitivity_analysis != "propensityScore") {
-      if (sensitivity_analysis != "noWeights") {
-        model = feols(fml= as.formula(formula_str),
-                      weights= ~told_diagnosis_outcome_total,
-                      data=dataGrouped,
-                      cluster="Cancer.Alliance")
-      }
-      else {
-        model = feols(fml= as.formula(formula_str),
-                      data=dataGrouped,
-                      cluster="Cancer.Alliance")
-      }
+    # Run model with no weights for sensitivity analysis
+    if (sensitivity_analysis == "noWeights") {
+      model = feols(fml= as.formula(formula_str),
+                    data=dataGrouped,
+                    cluster="Cancer.Alliance")
     }
 
-    # Code for wild bootstrap two way fixed effects model goes below
-    else if (sensitivity_analysis == "wildBootstrap")
-    {
-
-        # running the model
-        model <- feols(
-          fml = as.formula(formula_str),
-          weights = ~told_diagnosis_outcome_total,
-          data = (dataGrouped %>%
-                    mutate(
-                      Cancer.Alliance = as.factor(Cancer.Alliance),
-                      period = as.factor(period)
-                    )),
-          cluster = ~Cancer.Alliance
-        )
-
-        # Wild cluster bootstrap using Rademacher weights
-        out = list()
-      
-        # grab only the X variables from the formula (but not fixed effects)
-        x_vars <- strsplit(strsplit(formula_str, "~|\\|")[[1]][2], "\\+")[[1]] %>%
-          trimws() %>%                    # Remove whitespace
-          gsub("`", "", .)           
-              
-        # looping through the coeficients to adjust each p value
-        for(var in x_vars){
-          boot_res <- boottest(
-            model,
-            param = var,
-            B = 999,
-            clustid = "Cancer.Alliance",
-            type = "rademacher"
-          )
-          out[[var]] = boot_res
-        }
-
-    }
-
-    # behaves just like the one above, except that instead of weighting by total number of referrals, the model uses propensity score weights
-    else if (sensitivity_analysis == "propensityScore")
-    {
+    # Run model with propensity score weights for sensitivity analysis
+    else if (sensitivity_analysis == "propensityScore") {
 
       # merge on propensity score weights
-      psw_weight = read.csv(paste0(dataDirPath, "PS_wts_for_sensruns.csv"))
+      psw_weight = read.csv(paste0(dirPath, "PS_wts_for_sensruns.csv"))
       dataGrouped = dataGrouped %>%
-        left_join((psw_weight %>% 
-          select(Cancer.Alliance = CancerAlliance, 
-                psw)))
+        left_join((psw_weight %>%
+                     select(Cancer.Alliance = CancerAlliance,
+                            psw)))
       print("Are there any Missing PSW weights `table(is.na(dataGrouped$psw))`?\n")
       print(table(is.na(dataGrouped$psw)))
-      
+
       # running the model with PS weights
       model = feols(fml= as.formula(formula_str),
-              weights= ~psw,
-              data=dataGrouped,
-              cluster="Cancer.Alliance")
-
+                    weights= ~psw,
+                    data=dataGrouped,
+                    cluster="Cancer.Alliance")
     }
 
-    # # Show model results and confidence intervals
-    # summary(model)
-    # confint(model, level=0.95)
-    #
-    # knitr::kable(etable(model, depvar = T,
-    #                     dict=c(percentage_not_told_diagnosis_outcome_within_28_days="Percent Not Told Diagnosis Outcome Within 28 Days", treat="Treatment")), caption = "Two Way Fixed Effects Estimation of Difference in Differences")
+    # Run model with wild bootstrapping for sensitivity analysis
+    else if (sensitivity_analysis == "wildBootstrap") {
+
+      # Skip acute leukaemia, which has too few referral observations to conduct wild bootstrap analysis
+      if (cancers_included == "Suspected acute leukaemia") {
+        next
+      }
+
+      # running the model
+      model <- feols(
+        fml = as.formula(formula_str),
+        weights = ~told_diagnosis_outcome_total,
+        data = (dataGrouped %>%
+                  mutate(
+                    Cancer.Alliance = as.factor(Cancer.Alliance),
+                    period = as.factor(period)
+                  )),
+        cluster = ~Cancer.Alliance
+      )
+
+      # Wild cluster bootstrap using Rademacher weights
+      out = list()
+
+      # grab only the X variables from the formula (but not fixed effects)
+      x_vars <- strsplit(strsplit(formula_str, "~|\\|")[[1]][2], "\\+")[[1]] %>%
+        trimws() %>%                    # Remove whitespace
+        gsub("`", "", .)
+
+      # looping through the coeficients to adjust each p value
+      for(var in x_vars){
+        boot_res <- boottest(
+          model,
+          param = var,
+          B = 999,
+          clustid = "Cancer.Alliance",
+          type = "rademacher"
+        )
+        out[[var]] = boot_res
+      }
+    }
+
+    # Run default model for all other analyses (including primary analyses), weighted by total number of referrals that get diagnostic outcome, with errors clustered at cancer alliance level
+    else {
+      model = feols(fml= as.formula(formula_str),
+                    weights= ~told_diagnosis_outcome_total,
+                    data=dataGrouped,
+                    cluster="Cancer.Alliance")
+    }
 
     # When periodLength is set to 6m we want to start populating table results
-    if (periodLength != "1m") {
+    if (periodLength == "6m") {
       # Extract coefficients (estimates)
       estimates <- coef(model)
 
       # P-values: use bootstrap p-values and confidence intervals for wildBootstrap, otherwise use standard
       if (sensitivity_analysis == "wildBootstrap") {
 
-        browser()
+        # browser()
 
         p_values <- sapply(out, function(x){x$p_val})
-        conf_intervals <- bind_rows(lapply(out, confint, level = 0.95)) %>% 
-          t %>% 
+        conf_intervals <- bind_rows(lapply(out, confint, level = 0.95)) %>%
+          t %>%
           as.data.frame %>%
           setNames(c("2.5 %", "97.5 %")) %>%
           as.matrix()
       } else {
-        
+
         conf_intervals <- confint(model, level = 0.95)
         p_values <- coeftable(model)[, "Pr(>|t|)"]
       }
@@ -612,24 +630,14 @@ Analysis <- function(data, periodLength, sensitivity_analysis, depVar, summary_s
         mutate(CancerType = cancers_included) %>%
         select(CancerType, "Months0-5", "Months6-11", "Months12-17", "Months18-23", "Months24-29", "Months30-35")  # Move CancerType to the first position
 
-      print(results_transposed)
-
       overall_results <- rbind(overall_results, results_transposed)
-
-      print(dataGrouped)
     }
 
-    if (periodLength == "1m" && cancers_included %in% c(names(cancer_groups))) {
+    if (periodLength == "1m" && cancers_included %in% c(names(cancer_groups)) && depVar == "delayRate" && sensitivity_analysis == "") {
       # Display model results in a figure where x axis is time periods and y axis is percentage point difference
       coefficients <- coef(model) * conversionFactor # Convert to percentage point scale
-      if(sensitivity_analysis == "wildBootstrap"){
+      standard_errors <- se(model) * conversionFactor # Convert to percentage point scale
 
-        # calculating standard errors directly
-        standard_errors <- sapply(out, function(x){x$point_estimate / x$t_stat}) * conversionFactor # Convert to percentage point scale
-      } else {
-        standard_errors <- se(model) * conversionFactor # Convert to percentage point scale
-      }
-      
       results <- data.frame(
         estimate = coefficients,
         se = standard_errors
@@ -646,13 +654,12 @@ Analysis <- function(data, periodLength, sensitivity_analysis, depVar, summary_s
       results$upper <- results$estimate + 1.96 * results$se
 
       # Create and export figure plot as image file
-      limits = c(min(c(-6.7, results$lower)), max(results$upper, 35.7))
       plot <- ggplot(results, aes(x = period)) +
         geom_line(aes(y = estimate), size = 1) +
         geom_line(aes(y = lower), linetype = "dotted", size = 0.5) +
         geom_line(aes(y = upper), linetype = "dotted", size = 0.5) +
         scale_y_continuous(labels = label_percent(scale = 1), limits = c(-12.4, 12.4)) +  # Format as percentage
-        scale_x_continuous(limits = c(-6.7, 35.7), breaks = seq(ceiling(limits[1]), floor(limits[2]), by = 1), expand = c(0, 0)) +
+        scale_x_continuous(limits = c(-6.7, 35.7), breaks = seq(-6, 35, by = 1), expand = c(0, 0)) +
         labs(
           x = "Length of time (months) relative to trial start",
           y = "Percentage points"
@@ -669,7 +676,7 @@ Analysis <- function(data, periodLength, sensitivity_analysis, depVar, summary_s
     }
   }
 
-  if (periodLength != "1m") {
+  if (periodLength == "6m") {
     # Read the linking file to get cancer type labels and order for tabular display in manuscript
     linking_file <- read.csv(paste0(linkingDirPath, "Results Table Labels and Order.csv"),
                              stringsAsFactors = FALSE)
@@ -692,64 +699,33 @@ Analysis <- function(data, periodLength, sensitivity_analysis, depVar, summary_s
       select(-Order)  # Remove the Order column after sorting
     write.csv(overall_results, paste0(resultsDirPath, "overallResults", suffix, ".csv"), row.names = FALSE)
   }
-
-  # output the summary statistics
-  return(summary_stats)
-
 }
 
-summary_stats = Analysis(baseData, periodLength = "1m", sensitivity_analysis = "", depVar = "delayRate", summary_stats = summary_stats)
-summary_stats = Analysis(baseData, periodLength = "6m", sensitivity_analysis = "", depVar = "delayRate", summary_stats = summary_stats) # produces overallResults_6m_delayRate.csv
+Analysis(baseData, periodLength = "1m", sensitivity_analysis = "", depVar = "delayRate")
 
-summary_stats = Analysis(baseData, periodLength = "1m", sensitivity_analysis = "", depVar = "refRate", summary_stats = summary_stats)
-summary_stats = Analysis(baseData, periodLength = "6m", sensitivity_analysis = "", depVar = "refRate", summary_stats = summary_stats) # produces overallResults_6m_refRate.csv
+Analysis(baseData, periodLength = "6m", sensitivity_analysis = "", depVar = "delayRate") # produces overallResults_6m_delayRate.csv
+Analysis(baseData, periodLength = "6m", sensitivity_analysis = "", depVar = "refRate") # produces overallResults_6m_refRate.csv
 
-summary_stats = Analysis(baseData, periodLength = "1m", sensitivity_analysis = "washout", depVar = "delayRate", summary_stats = summary_stats)
-summary_stats = Analysis(baseData, periodLength = "6m", sensitivity_analysis = "washout", depVar = "delayRate", summary_stats = summary_stats) # produces overallResults_6m_washout_delayRate.csv
+Analysis(baseData, periodLength = "6m", sensitivity_analysis = "washout", depVar = "delayRate") # produces overallResults_6m_washout_delayRate.csv
+Analysis(baseData, periodLength = "6m", sensitivity_analysis = "washout", depVar = "refRate") # produces overallResults_6m_washout_refRate.csv
 
-summary_stats = Analysis(baseData, periodLength = "1m", sensitivity_analysis = "washout", depVar = "refRate", summary_stats = summary_stats)
-summary_stats = Analysis(baseData, periodLength = "6m", sensitivity_analysis = "washout", depVar = "refRate", summary_stats = summary_stats) # produces overallResults_6m_washout_refRate.csv
+Analysis(baseData, periodLength = "6m", sensitivity_analysis = "altCovariate", depVar = "delayRate") # produces overallResults_6m_altCovariate_delayRate.csv
+Analysis(baseData, periodLength = "6m", sensitivity_analysis = "altCovariate", depVar = "refRate") # produces overallResults_6m_altCovariate_refRate.csv
 
-summary_stats = Analysis(baseData, periodLength = "1m", sensitivity_analysis = "altCovariate", depVar = "delayRate", summary_stats = summary_stats)
-summary_stats = Analysis(baseData, periodLength = "6m", sensitivity_analysis = "altCovariate", depVar = "delayRate", summary_stats = summary_stats) # produces overallResults_6m_altCovariate_delayRate.csv
+Analysis(baseData, periodLength = "6m", sensitivity_analysis = "noCovariate", depVar = "delayRate") # produces overallResults_6m_noCovariate_delayRate.csv
+Analysis(baseData, periodLength = "6m", sensitivity_analysis = "noCovariate", depVar = "refRate") # produces overallResults_6m_noCovariate_refRate.csv
 
-summary_stats = Analysis(baseData, periodLength = "1m", sensitivity_analysis = "altCovariate", depVar = "refRate", summary_stats = summary_stats)
-summary_stats = Analysis(baseData, periodLength = "6m", sensitivity_analysis = "altCovariate", depVar = "refRate", summary_stats = summary_stats) # produces overallResults_6m_altCovariate_refRate.csv
+Analysis(baseData, periodLength = "6m", sensitivity_analysis = "noWeights", depVar = "delayRate") # produces overallResults_6m_noWeights_delayRate.csv
+Analysis(baseData, periodLength = "6m", sensitivity_analysis = "noWeights", depVar = "refRate") # produces overallResults_6m_noWeights_refRate.csv
 
-summary_stats = Analysis(baseData, periodLength = "1m", sensitivity_analysis = "noCovariate", depVar = "delayRate", summary_stats = summary_stats)
-summary_stats = Analysis(baseData, periodLength = "6m", sensitivity_analysis = "noCovariate", depVar = "delayRate", summary_stats = summary_stats) # produces overallResults_6m_noCovariate_delayRate.csv
+Analysis(baseData, periodLength = "6m", sensitivity_analysis = "wildBootstrap", depVar = "delayRate") # produces overallResults_6m_wildBootstrap_delayRate.csv
+Analysis(baseData, periodLength = "6m", sensitivity_analysis = "wildBootstrap", depVar = "refRate") # produces overallResults_6m_wildBootstrap_refRate.csv
 
-summary_stats = Analysis(baseData, periodLength = "1m", sensitivity_analysis = "noCovariate", depVar = "refRate", summary_stats = summary_stats)
-summary_stats = Analysis(baseData, periodLength = "6m", sensitivity_analysis = "noCovariate", depVar = "refRate", summary_stats = summary_stats) # produces overallResults_6m_noCovariate_refRate.csv
+Analysis(baseData, periodLength = "6m", sensitivity_analysis = "propensityScore", depVar = "delayRate") # produces overallResults_6m_wildBootstrap_delayRate.csv
+Analysis(baseData, periodLength = "6m", sensitivity_analysis = "propensityScore", depVar = "refRate") # produces overallResults_6m_wildBootstrap_refRate.csv
 
-summary_stats = Analysis(baseData, periodLength = "1m", sensitivity_analysis = "noWeights", depVar = "delayRate", summary_stats = summary_stats)
-summary_stats = Analysis(baseData, periodLength = "6m", sensitivity_analysis = "noWeights", depVar = "delayRate", summary_stats = summary_stats) # produces overallResults_6m_noWeights_delayRate.csv
+Analysis(baseData, periodLength = "6m", sensitivity_analysis = "14days", depVar = "delayRate") # produces overallResults_6m_14days_delayRate.csv
+Analysis(baseData, periodLength = "6m", sensitivity_analysis = "42days", depVar = "delayRate") # produces overallResults_6m_42days_delayRate.csv
+Analysis(baseData, periodLength = "6m", sensitivity_analysis = "62days", depVar = "delayRate") # produces overallResults_6m_62days_delayRate.csv
 
-summary_stats = Analysis(baseData, periodLength = "1m", sensitivity_analysis = "noWeights", depVar = "refRate", summary_stats = summary_stats)
-summary_stats = Analysis(baseData, periodLength = "6m", sensitivity_analysis = "noWeights", depVar = "refRate", summary_stats = summary_stats) # produces overallResults_6m_noWeights_refRate.csv
-
-summary_stats = Analysis(baseData, periodLength = "1m", sensitivity_analysis = "wildBootstrap", depVar = "delayRate", summary_stats = summary_stats)
-summary_stats = Analysis(baseData, periodLength = "6m", sensitivity_analysis = "wildBootstrap", depVar = "delayRate", summary_stats = summary_stats) # produces overallResults_6m_wildBootstrap_delayRate.csv
-
-summary_stats = Analysis(baseData, periodLength = "1m", sensitivity_analysis = "wildBootstrap", depVar = "refRate", summary_stats = summary_stats)
-summary_stats = Analysis(baseData, periodLength = "6m", sensitivity_analysis = "wildBootstrap", depVar = "refRate", summary_stats = summary_stats) # produces overallResults_6m_wildBootstrap_refRate.csv
-
-summary_stats = Analysis(baseData, periodLength = "1m", sensitivity_analysis = "propensityScore", depVar = "delayRate", summary_stats = summary_stats)
-summary_stats = Analysis(baseData, periodLength = "6m", sensitivity_analysis = "propensityScore", depVar = "delayRate", summary_stats = summary_stats) # produces overallResults_6m_wildBootstrap_delayRate.csv
-
-summary_stats = Analysis(baseData, periodLength = "1m", sensitivity_analysis = "propensityScore", depVar = "refRate", summary_stats = summary_stats)
-summary_stats = Analysis(baseData, periodLength = "6m", sensitivity_analysis = "propensityScore", depVar = "refRate", summary_stats = summary_stats) # produces overallResults_6m_wildBootstrap_refRate.csv
-
-summary_stats = Analysis(baseData, periodLength = "1m", sensitivity_analysis = "14days", depVar = "delayRate", summary_stats = summary_stats)
-summary_stats = Analysis(baseData, periodLength = "6m", sensitivity_analysis = "14days", depVar = "delayRate", summary_stats = summary_stats) # produces overallResults_6m_14days_delayRate.csv
-
-summary_stats = Analysis(baseData, periodLength = "1m", sensitivity_analysis = "42days", depVar = "delayRate", summary_stats = summary_stats)
-summary_stats = Analysis(baseData, periodLength = "6m", sensitivity_analysis = "42days", depVar = "delayRate", summary_stats = summary_stats) # produces overallResults_6m_42days_delayRate.csv
-
-summary_stats = Analysis(baseData, periodLength = "1m", sensitivity_analysis = "62days", depVar = "delayRate", summary_stats = summary_stats)
-summary_stats = Analysis(baseData, periodLength = "6m", sensitivity_analysis = "62days", depVar = "delayRate", summary_stats = summary_stats) # produces overallResults_6m_62days_delayRate.csv
-
-summary_stats = Analysis(baseData, periodLength = "1m", sensitivity_analysis = "", depVar = "estWaitTime", summary_stats = summary_stats)
-summary_stats = Analysis(baseData, periodLength = "6m", sensitivity_analysis = "", depVar = "estWaitTime", summary_stats = summary_stats) # produces overallResults_6m_estWaitTime.csv
-
-write.csv(summary_stats, paste0(resultsDirPath, "summaryStats.csv"), row.names = FALSE)
+Analysis(baseData, periodLength = "6m", sensitivity_analysis = "", depVar = "estWaitTime") # produces overallResults_6m_estWaitTime.csv
