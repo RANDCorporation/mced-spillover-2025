@@ -1,80 +1,88 @@
-
 # MCED Spillover Paper
 
-### 📄 Project Description
+### Project Description
 
-Add your description here. Briefly describe the purpose of the MCED Spillover Paper, its main research questions, and what the repository contains.
+This repository supports the MCED spillover paper, which studies how multi-cancer early detection pilots affect diagnostic delays within NHS England. The R code covers data acquisition and cleaning, panel dataset construction, propensity-score weighting for sensitivity checks, and simulation work that informs inference around selection bias.
 
-### 📁 Repository Structure
+### Repository Structure
 
-``` 
-├── R/                # R scripts and code (create subfolders as needed)
-├── data/             # Project data (public only)
-├── output/           # Outputs: tables, models, graphs, etc.
-├── archive/          # Extraneous files not needed for reproducibility
-├── renv/             # renv environment for reproducibility
-├── renv.lock         # renv lockfile (R package versions)
-├── mced-spillover.Rproj # RStudio project file
-├── .gitignore        # Files and folders to ignore in git
-├── .Rprofile         # R project profile settings
-├── .git/             # Git version control folder
-├── .Rproj.user/      # RStudio project user settings
-└── README.md         # This file 
+```
+R/                        # R scripts split by workflow
+  analysis/               # Panel analysis (e.g., mced_panel_analysis.R)
+  data_cleaning/          # Data ingestion and preprocessing scripts
+  psw/                    # Propensity-score weighting workflow
+  simulations/            # Simulation scripts and helpers
+data/                     # Data folders (non-sensitive only)
+  cleaned_data/
+  linking_files/
+  processed/
+  raw_covariates/
+  results/
+renv/                     # renv environment (to be enabled)
+renv.lock                 # Locked package versions
+mced-spillover.Rproj      # RStudio project file
+.gitignore
+.Rprofile
+README.md
 ```
 
-### 🚦 Workflow & Collaboration
+### Workflow & Collaboration
+
+Primary workflows live under `R/`: start with `data_cleaning/mced_panel_datacollection.R` to assemble cleaned inputs, follow with `analysis/mced_panel_analysis.R` for core estimates, use `psw/PSW_work.R` when generating PS weights and balance checks, and rely on `simulations/` for selection-bias simulations. 
 
 ### Getting Started
 
-<br>Clone the repository:</br> 
-``` 
-git pull git@code.rand.org:mced-spillover/mced-spillover.git 
-git switch dev 
+Clone the repository:
+
 ```
-<br>At the start of each session:</br> ``` git pull ```
-<br>After making changes:</br>
-``` 
-git add . 
-git commit -m "your description of the changes"
-git push -u origin dev 
+git clone git@code.rand.org:mced-spillover/mced-spillover.git
+cd mced-spillover
+git switch dev
 ```
 
-### Branching:
+At the start of each session: `git pull`
+After making changes:
 
-Work in the ```dev``` branch for all non-QAed changes.
-Merges to ```main``` will be managed after QA.
+```
+git add .
+git commit -m "describe your changes"
+git push -u origin dev
+```
 
-###  📦 Reproducibility with ```renv```
-The project uses <a href="https://rstudio.github.io/renv/">renv</a> for R package management.
-To set up your environment: 
+### Branching
+
+Work in the `dev` branch for all non-QAed changes. Merges to `main` will be managed after QA review.
+
+### Reproducibility with `renv`
+
+The project uses `<a href="https://rstudio.github.io/renv/">`renv`</a>` for R package management.
+To set up your environment:
 
 ```
 renv::restore() # Installs required R packages 
 ```
 
-When adding new packages: 
+When adding new packages:
 
-``` 
+```
 renv::snapshot()  # Updates package metadata 
 ```
 
-### 🗂️ Folder Guidelines
+### Folder Guidelines
 
-```R/```: Place all R scripts here. Create descriptive subfolders as needed.
+`R/`: Place R scripts in the appropriate workflow subfolder.
+`data/`: Store public or shareable project data only.
+`output/`: Save generated tables, figures, and serialized model objects.
 
-```data/```: Store public project data here.
+Do not commit sensitive data or credentials.
 
-```output/```: Save outputs (tables, models, graphs, etc.) here.
+### Notes
 
-```archive/```: Place any non-essential files here.
+This repository is intended to be public at project completion. Verify that committed files are suitable for public release and clearly document any steps that rely on external, non-public inputs.
 
-<br>No sensitive data or API keys:</br> Only commit public, shareable content.
+### Contributors
 
-### 📝 Notes
-This repository is intended to be public at project completion.
-Please ensure all committed files are suitable for public release.
+Sean Man, Pedro Nascimento de Lima, Beth Ann Griffin, Joshua Eagan
 
-### 👥 Contributors
-[Your Name(s) Here]
+
 For questions or suggestions, please open an issue or contact the project maintainer.
-Let me know if you want further customization or additional sections!
