@@ -248,7 +248,7 @@ Analysis <- function(data, periodLength, sensitivity_analysis, depVar) {
       data <- subset(data, (suspected_cancer_or_breast_symptomatic == cancers_included))
     }
 
-    # For monthly analyses and primary cancer groups, produce trend figures using unadjusted values
+    # For monthly analyses of primary cancer groups, produce trend figures using unadjusted values
     if (periodLength == "1m" && cancers_included %in% c(names(cancer_groups))) {
       trendData<-data %>%
         group_by(mced_treated, period) %>%
@@ -272,11 +272,6 @@ Analysis <- function(data, periodLength, sensitivity_analysis, depVar) {
 
       # Set axis label in figure so that start of trial (Oct 2021) is 0, meaning pre-trial time periods are negative.
       trendData$periodNum = trendData$periodNum - period_adjustment
-
-      # Find the first period for labeling
-      label_data <- trendData %>%
-        group_by(mced_treated) %>%
-        filter(periodNum == min(periodNum))
 
       trendPlot = ggplot(trendData, aes(x = periodNum, y = point_estimate, color = factor(mced_treated))) +
         geom_point(position = position_dodge(width = 0.25), size = 0.35) +
@@ -320,6 +315,10 @@ Analysis <- function(data, periodLength, sensitivity_analysis, depVar) {
         date = first(date)
       )
 
+    # JOSHUA- Sean- the next two code chunks (dataGrouped <- dataGrouped ...) seem redundant. Can we consolidate this?
+    # we could just skip the aggregation by monthNum and only use periodNum which would handle the 6 month and 1 month cases
+    # This is relevant in a few spots in this file.
+    
     # Group data (which had been at provider- and month-level) up to the cancer alliance- and month-level
     # Done in this sequence in order to sum staff and absence numbers across providers
     dataGrouped <- dataGrouped %>%
@@ -557,8 +556,6 @@ Analysis <- function(data, periodLength, sensitivity_analysis, depVar) {
 
       # P-values: use bootstrap p-values and confidence intervals for wildBootstrap, otherwise use standard
       if (sensitivity_analysis == "wildBootstrap") {
-
-        # browser()
 
         p_values <- sapply(out, function(x){x$p_val})
         conf_intervals <- bind_rows(lapply(out, confint, level = 0.95)) %>%

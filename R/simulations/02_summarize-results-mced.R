@@ -14,17 +14,18 @@ library(dplyr)
 library(ggplot2)
 library(glue)
 library(tidyr)
+library(here)
 
-setwd("C:/Users/bethg/Documents/MCED spillover")
+setwd(here())
 
 # setup -------------------------------------------------------------------
 
 # load summarize functions
 # in the future, these should be exported, or better yet, incorporated into a summary method
-source('summary-functions.R')
+source(file.path('R', 'simulations', 'summary-functions.R'))
 
 # define output path
-outpath <- 'C:/Users/bethg/Documents/MCED spillover'
+outpath <- file.path('data', 'results')
 
 # set a datestamp
 datestamp <- Sys.Date()
@@ -121,6 +122,6 @@ summarize_results_noconf <- function(x) {
 
 # export the data ---------------------------------------------------------
 
-saveRDS(sim_summaries, "summarized_results_{datestamp}.Rds")
+# saveRDS(sim_summaries, "summarized_results_{datestamp}.Rds")
 
 write.table(sim_summaries,"sim_summaries_mced_07292025.csv",sep=",",row.names=F)
