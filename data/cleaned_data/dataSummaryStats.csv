@@ -3,9 +3,10 @@
 "calculation_We excluded XXXXX referrals labeled 'Exhibited (non-cancer) breast symptoms - cancer not initially suspected' from our analysis",450392
 "calculation_We excluded XXXXX referrals labeled 'Missing or Invalid' from our analysis",112121
 "calculation_We excluded XXXXX referrals labeled 'Suspected cancer - non-specific symptoms' from our analysis",53713
-"calculation_After these exclusions, XXXX referrals remained in our dataset",9705144
-"calculation_This manual review resulted in the exclusion of XXXXXX referrals associated with 8 providers that provide services across multiple regions",19704
-"calculation_Following data cleaning and linking, our study sample included XXXXXX cancer referrals associated with 150 providers",9685440
+"calculation_We excluded XXXXX referrals labeled 'Suspected children's cancer' from our analysis",38821
+"calculation_After these exclusions, XXXX referrals remained in our dataset",9666323
+"calculation_This manual review resulted in the exclusion of XXXXXX referrals associated with 8 providers that provide services across multiple regions",19692
+"calculation_Following data cleaning and linking, our study sample included XXXXXX cancer referrals associated with 150 providers",9646631
 "calculation_Total referrals for exclusively_protocol_not_screened cancers: Suspected head & neck cancer, Suspected lung cancer, Suspected upper gastrointestinal cancer",1875236
 "calculation_Total referrals for contains_protocol cancers: Suspected lower gastrointestinal cancer, Suspected head & neck cancer, Suspected lung cancer, Suspected upper gastrointestinal cancer, Suspected gynaecological cancer, Suspected haematological malignancies (excluding acute leukaemia), Suspected urological malignancies (excluding testicular)",5532510
 "calculation_Total referrals for does_not_contain_protocol cancers: Suspected skin cancer, Suspected breast cancer, Suspected sarcoma, Suspected brain/central nervous system tumours, Suspected testicular cancer, Suspected acute leukaemia, Suspected other cancer",4114121

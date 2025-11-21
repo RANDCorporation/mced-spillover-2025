@@ -122,6 +122,4 @@ summarize_results_noconf <- function(x) {
 
 # export the data ---------------------------------------------------------
 
-# saveRDS(sim_summaries, "summarized_results_{datestamp}.Rds")
-
 write.table(sim_summaries,"sim_summaries_mced_07292025.csv",sep=",",row.names=F)
