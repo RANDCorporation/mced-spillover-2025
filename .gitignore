@@ -17,3 +17,12 @@
 # Exception: include CSV files in data/linking_files/
 !data/linking_files/
 !data/linking_files/*.csv
+
+# Ignore generated result PNG plots except specific exports
+data/results/*.png
+!data/results/TrendPlot_primary_high_detection_1m_delayRate.png
+!data/results/TrendPlot_sec_exp_high_detection_1m_delayRate.png
+!data/results/TrendPlot_sec_low_detection_1m_delayRate.png
+!data/results/DiffInDiff_primary_high_detection_1m_delayRate.png
+!data/results/DiffInDiff_sec_exp_high_detection_1m_delayRate.png
+!data/results/DiffInDiff_sec_low_detection_1m_delayRate.png
