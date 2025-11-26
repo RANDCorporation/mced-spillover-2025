@@ -59,4 +59,4 @@ write.table(bal.info[[2]],file.path("data", "results", "weighted_balance_1014202
 
 #save psw weights to data for use in sensitivity analyses
 
-write.table(data, file.path("data", "PS_wts_for_sensruns.csv"),sep=",",row.names=F)
+write.table(data, file.path("data", "cleaned_data", "PS_wts_for_sensruns.csv"),sep=",",row.names=F)

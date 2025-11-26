@@ -485,7 +485,7 @@ Analysis <- function(data, periodLength, sensitivity_analysis, depVar) {
     else if (sensitivity_analysis == "propensityScore") {
 
       # merge on propensity score weights
-      psw_weight = read.csv(paste0(dirPath, "PS_wts_for_sensruns.csv"))
+      psw_weight = read.csv(paste0(dataDirPath, "PS_wts_for_sensruns.csv"))
       dataGrouped = dataGrouped %>%
         left_join((psw_weight %>%
                      select(Cancer.Alliance = CancerAlliance,
