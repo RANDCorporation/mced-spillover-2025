@@ -6,7 +6,7 @@ This repository supports the MCED spillover paper, which studies how multi-cance
 
 ### Repository Structure
 
-```         
+```
 R/                        # R scripts split by workflow
   analysis/               # Panel analysis (e.g., mced_panel_analysis.R)
   data_cleaning/          # Data ingestion and preprocessing scripts
@@ -34,7 +34,7 @@ Primary workflows live under `R/`: start with `data_cleaning/mced_panel_datacoll
 
 Clone the repository:
 
-```         
+```
 git clone git@code.rand.org:mced-spillover/mced-spillover.git
 cd mced-spillover
 git switch dev
@@ -42,7 +42,7 @@ git switch dev
 
 At the start of each session: `git pull` After making changes:
 
-```         
+```
 git add .
 git commit -m "describe your changes"
 git push -u origin dev
@@ -69,9 +69,9 @@ renv::snapshot()  # Updates package metadata
 
 The code should be run in the following order:
 
-1.  `R/data_cleaning/mced_panel_datacollection.R`
-2.  `R/psw/PSW_work.R`
-3.  `R/analysis/mced_panel_analysis.R`
+1. `R/data_cleaning/mced_panel_datacollection.R`
+2. `R/psw/PSW_work.R`
+3. `R/analysis/mced_panel_analysis.R`
 
 All datasets needed to run these scripts are contained in the repo.
 
@@ -84,3 +84,11 @@ All datasets needed to run these scripts are contained in the repo.
 Sean Man, Pedro Nascimento de Lima, Beth Ann Griffin, Joshua Eagan
 
 For questions or suggestions, please open an issue or contact the project maintainer.
+
+### Data
+
+Data included in this repository were obtained from `https://www.england.nhs.uk/`, see code comments for specific URLs. These data are made available for public use under the [OGL 3](https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/ "license text") license.
+
+### License
+
+This code is licensed under version 3 of the GPL or any later version.
