@@ -53,7 +53,7 @@ All datasets needed to run these scripts are contained in the repo.
 
 ### Contributors
 
-[Sean Man](smann@rand.org), [Pedro Nascimento de Lima](plima@rand.org), [Beth Ann Griffin](bethg@rand.org), [Joshua Eagan](jeagan@rand.org)
+[Sean Mann](smann@rand.org), [Pedro Nascimento de Lima](plima@rand.org), [Beth Ann Griffin](bethg@rand.org), [Joshua Eagan](jeagan@rand.org)
 
 For questions or suggestions, please open an issue or contact the project maintainer.
 
