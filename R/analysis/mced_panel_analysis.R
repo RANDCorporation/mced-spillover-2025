@@ -664,6 +664,12 @@ Analysis <- function(data, periodLength, sensitivity_analysis, depVar) {
         date = first(date)
       )
 
+    # Compute total referrals across all Cancer Alliances and all periods for this cancer type/group
+    total_referrals <- dataGrouped %>%
+      ungroup() %>%
+      summarise(total = sum(told_diagnosis_outcome_total, na.rm = TRUE)) %>%
+      pull(total)
+
     # calculating percentage of patients facing diagnostic delay
     dataGrouped$percentage_not_told_diagnosis_outcome_within_28_days = (dataGrouped$num_not_told_diagnosis_outcome_within_28_days / dataGrouped$told_diagnosis_outcome_total)
 
@@ -742,6 +748,30 @@ Analysis <- function(data, periodLength, sensitivity_analysis, depVar) {
 
     # calculating rate of bed occupancy by COVID-19 patients by 100000 population
     dataGrouped$bedOccupancyRate <- (dataGrouped$totalBedsOccupied / dataGrouped$population) * 100000
+
+    # Compute raw unadjusted pre-trial baseline rate for participating regions
+    if (depVar == "delayRate") {
+      rateColName <- "percentage_not_told_diagnosis_outcome_within_28_days"
+      if (sensitivity_analysis == "14days") {
+        rateColName <- "percentage_not_told_diagnosis_outcome_within_14_days"
+      } else if (sensitivity_analysis == "42days") {
+        rateColName <- "percentage_not_told_diagnosis_outcome_within_42_days"
+      } else if (sensitivity_analysis == "62days") {
+        rateColName <- "percentage_not_told_diagnosis_outcome_within_62_days"
+      }
+      weightColName <- "told_diagnosis_outcome_total"
+    } else if (depVar == "refRate") {
+      rateColName <- "ref_rate"
+      weightColName <- "population"
+    } else if (depVar == "estWaitTime") {
+      rateColName <- "est_wait_time"
+      weightColName <- "told_diagnosis_outcome_total"
+    }
+
+    pretrial_baseline <- dataGrouped %>%
+      filter(mced_treated == 1, periodNum == 1) %>%
+      summarise(rate = weighted.mean(.data[[rateColName]], .data[[weightColName]], na.rm = TRUE)) %>%
+      pull(rate) * conversionFactor
 
     # create a dummy variable for each time period, set to 1 when a row is in that time period and is for a cancer alliance region participating in the trial
     dataGrouped <- dataGrouped %>%
@@ -976,8 +1006,21 @@ Analysis <- function(data, periodLength, sensitivity_analysis, depVar) {
 
       # Add the new CancerType column and populate it
       results_transposed <- results_transposed %>%
-        mutate(CancerType = cancers_included) %>%
-        select(CancerType, "Months0-5", "Months6-11", "Months12-17", "Months18-23", "Months24-29", "Months30-35")  # Move CancerType to the first position
+        mutate(CancerType = cancers_included)
+
+      # Conditionally add Total No. of Referrals and Pre-Trial Baseline columns
+      if (depVar %in% c("delayRate", "estWaitTime")) {
+        results_transposed <- results_transposed %>%
+          mutate(
+            `Total No. of Referrals` = format(total_referrals, big.mark = ",", trim = TRUE),
+            `Pre-Trial Baseline` = sprintf("%.1f", pretrial_baseline)
+          ) %>%
+          select(CancerType, `Total No. of Referrals`, `Pre-Trial Baseline`, "Months0-5", "Months6-11", "Months12-17", "Months18-23", "Months24-29", "Months30-35")
+      } else {
+        results_transposed <- results_transposed %>%
+          mutate(`Pre-Trial Baseline` = sprintf("%.1f", pretrial_baseline)) %>%
+          select(CancerType, `Pre-Trial Baseline`, "Months0-5", "Months6-11", "Months12-17", "Months18-23", "Months24-29", "Months30-35")
+      }
 
       overall_results <- rbind(overall_results, results_transposed)
     }
