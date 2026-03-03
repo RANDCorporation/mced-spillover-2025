@@ -1,7 +1,31 @@
 "label","value"
-"Table 1, number of providers, participating in trial_6m_delayRate",68
-"Table 1, number of providers, not participating in trial_6m_delayRate",74
+"Table 1, number of providers, participating in trial_6m_delayRate",72
+"Table 1, number of providers, not participating in trial_6m_delayRate",75
 "for calculation_Table 1, total referrals, participating in trial_6m_delayRate",537894
 "for calculation_Table 1, total referrals, not participating in trial_6m_delayRate",647244
 "Table 1, number of staff, participating in trial_6m_delayRate",422393.166666667
 "Table 1, number of staff, not participating in trial_6m_delayRate",450369.5
+"Table 1, pop-weighted avg IMD score, participating in trial_6m_delayRate",24.234600178534
+"Table 1, pct population in IMD quintile 1, participating in trial_6m_delayRate",0.257404834806301
+"Table 1, pct population in IMD quintile 2, participating in trial_6m_delayRate",0.206755831013769
+"Table 1, pct population in IMD quintile 3, participating in trial_6m_delayRate",0.194179571947191
+"Table 1, pct population in IMD quintile 4, participating in trial_6m_delayRate",0.179523521928027
+"Table 1, pct population in IMD quintile 5, participating in trial_6m_delayRate",0.162136240304713
+"Table 1, pop-weighted avg IMD score, not participating in trial_6m_delayRate",19.7343404632616
+"Table 1, pct population in IMD quintile 1, not participating in trial_6m_delayRate",0.152068702307862
+"Table 1, pct population in IMD quintile 2, not participating in trial_6m_delayRate",0.204742141443659
+"Table 1, pct population in IMD quintile 3, not participating in trial_6m_delayRate",0.210493610068976
+"Table 1, pct population in IMD quintile 4, not participating in trial_6m_delayRate",0.212721432868834
+"Table 1, pct population in IMD quintile 5, not participating in trial_6m_delayRate",0.219974113310669
+"Table 1, pop-weighted avg IMD score (50-77), participating in trial_6m_delayRate",22.2104562373436
+"Table 1, pct population in IMD quintile 1 (50-77), participating in trial_6m_delayRate",0.21245454465453
+"Table 1, pct population in IMD quintile 2 (50-77), participating in trial_6m_delayRate",0.191312247789445
+"Table 1, pct population in IMD quintile 3 (50-77), participating in trial_6m_delayRate",0.204399818325288
+"Table 1, pct population in IMD quintile 4 (50-77), participating in trial_6m_delayRate",0.203971054270676
+"Table 1, pct population in IMD quintile 5 (50-77), participating in trial_6m_delayRate",0.187862334960062
+"Table 1, pop-weighted avg IMD score (50-77), not participating in trial_6m_delayRate",18.2791357844346
+"Table 1, pct population in IMD quintile 1 (50-77), not participating in trial_6m_delayRate",0.125618898504455
+"Table 1, pct population in IMD quintile 2 (50-77), not participating in trial_6m_delayRate",0.181982335393693
+"Table 1, pct population in IMD quintile 3 (50-77), not participating in trial_6m_delayRate",0.21237518295157
+"Table 1, pct population in IMD quintile 4 (50-77), not participating in trial_6m_delayRate",0.231178862098385
+"Table 1, pct population in IMD quintile 5 (50-77), not participating in trial_6m_delayRate",0.248844721051897
