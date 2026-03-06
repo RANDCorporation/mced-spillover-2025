@@ -1,0 +1,4 @@
+"cancer_group","dep_var","slope_per_month","slope_se","t_statistic","df","p_value","n_clusters"
+"primary_high_detection","estWaitTime",0.0583292002422148,0.094663136908271,0.61617649855335,19,0.545090235111035,21
+"sec_exp_high_detection","estWaitTime",0.057939305714788,0.0442197439424082,1.31025873397748,19,0.205728155369792,21
+"sec_low_detection","estWaitTime",-0.139277187618683,0.133389970494947,-1.04413538065786,19,0.30952618582156,21

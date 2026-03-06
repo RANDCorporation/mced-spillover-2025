@@ -1,0 +1,12 @@
+label,value,
+"calculation_Prior to data cleaning and linking, the NHS England TWW dataset reported that XXXXXXXXX patient referrals for suspected cancer were seen during the study period",7089652,
+calculation_We excluded XXXXX referrals labeled 'Exhibited (non-cancer) breast symptoms - cancer not initially suspected' from our analysis,0,
+calculation_We excluded XXXXX referrals labeled 'Missing or Invalid' from our analysis,0,
+calculation_We excluded XXXXX referrals labeled 'Suspected cancer - non-specific symptoms' from our analysis,11231,
+calculation_We excluded XXXXX referrals labeled 'Suspected children's cancer' from our analysis,29052,
+"calculation_After these exclusions, XXXX referrals remained in our dataset",7049369,
+calculation_This manual review resulted in the exclusion of XXXXXX referrals associated with providers that provide services across multiple regions,11520,51803
+"calculation_Following data cleaning and linking, our TWW study sample included XXXXXX cancer referrals",7037849,
+"calculation_Total TWW referrals for exclusively_protocol_not_screened cancers: Suspected head & neck cancer, Suspected lung cancer, Suspected upper gastrointestinal cancer",1395926,
+"calculation_Total TWW referrals for contains_protocol cancers: Suspected lower gastrointestinal cancer, Suspected head & neck cancer, Suspected lung cancer, Suspected upper gastrointestinal cancer, Suspected gynaecological cancer, Suspected haematological malignancies (excluding acute leukaemia), Suspected urological malignancies (excluding testicular)",4085380,
+"calculation_Total TWW referrals for does_not_contain_protocol cancers: Suspected skin cancer, Suspected breast cancer, Suspected sarcoma, Suspected brain/central nervous system tumours, Suspected testicular cancer, Suspected acute leukaemia, Suspected other cancer",2952469,

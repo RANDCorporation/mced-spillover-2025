@@ -362,6 +362,59 @@ Analysis <- function(data, periodLength, sensitivity_analysis, depVar) {
       }
     }
 
+    # Stage at diagnosis summary statistics for Table 1
+    stage_table1 <- read.csv(paste0(dataDirPath, "stage_by_cancer_alliance.csv"))
+    stage_table1 <- merge(stage_table1, mced_indicator, by = "Cancer.Alliance")
+
+    for (treated_val in c(1, 0)) {
+      group_label <- ifelse(treated_val == 1, "participating in trial", "not participating in trial")
+      group_data <- subset(stage_table1, mced_treated == treated_val)
+
+      # Case-weighted proportion of stage III/IV across group
+      group_pct_stage_3_4 <- sum(group_data$stage_3 + group_data$stage_4) /
+        sum(group_data$total_known_stage)
+
+      summary_stats <- summary_stats %>%
+        add_row(label = paste0("Table 1, pct stage III/IV (known stage), ", group_label, suffix),
+                value = group_pct_stage_3_4)
+    }
+
+    # Cancer mortality (age-standardised rate) summary statistics for Table 1
+    mortality_table1 <- read.csv(paste0(dataDirPath, "mortality_by_cancer_alliance.csv"))
+    mortality_table1 <- merge(mortality_table1, mced_indicator, by = "Cancer.Alliance")
+
+    for (treated_val in c(1, 0)) {
+      group_label <- ifelse(treated_val == 1, "participating in trial", "not participating in trial")
+      group_data <- subset(mortality_table1, mced_treated == treated_val)
+
+      # Population-weighted average age-standardised mortality rate across group
+      group_asr <- sum(group_data$mortality_asr * group_data$mortality_population) /
+        sum(group_data$mortality_population)
+
+      summary_stats <- summary_stats %>%
+        add_row(label = paste0("Table 1, cancer mortality ASR per 100k (excl NMSC), ", group_label, suffix),
+                value = group_asr)
+    }
+
+    # Ethnicity summary statistics for Table 1
+    ethnicity_table1 <- read.csv(paste0(dataDirPath, "ethnicity_by_cancer_alliance.csv"))
+    ethnicity_table1 <- merge(ethnicity_table1, mced_indicator, by = "Cancer.Alliance")
+
+    for (treated_val in c(1, 0)) {
+      group_label <- ifelse(treated_val == 1, "participating in trial", "not participating in trial")
+      group_data <- subset(ethnicity_table1, mced_treated == treated_val)
+
+      for (eth in c("white", "asian", "black", "mixed", "other")) {
+        pct_col <- paste0("pct_", eth)
+        pop_weighted_pct <- sum(group_data[[pct_col]] * group_data$ethnicity_total) /
+          sum(group_data$ethnicity_total)
+
+        summary_stats <- summary_stats %>%
+          add_row(label = paste0("Table 1, pct ", eth, ", ", group_label, suffix),
+                  value = pop_weighted_pct)
+      }
+    }
+
     write.csv(summary_stats, paste0(resultsDirPath, "summaryStats.csv"), row.names = FALSE)
 
     # # # Generate provider list CSV # # #
@@ -714,6 +767,18 @@ Analysis <- function(data, periodLength, sensitivity_analysis, depVar) {
     imd_df <- read.csv(paste0(dataDirPath, "imd_by_cancer_alliance.csv"))
     dataGrouped <- merge(dataGrouped, imd_df, by = "Cancer.Alliance", all.x = TRUE)
 
+    # Merge stage at diagnosis measures by cancer alliance
+    stage_df <- read.csv(paste0(dataDirPath, "stage_by_cancer_alliance.csv"))
+    dataGrouped <- merge(dataGrouped, stage_df, by = "Cancer.Alliance", all.x = TRUE)
+
+    # Merge cancer mortality measures by cancer alliance
+    mortality_df <- read.csv(paste0(dataDirPath, "mortality_by_cancer_alliance.csv"))
+    dataGrouped <- merge(dataGrouped, mortality_df, by = "Cancer.Alliance", all.x = TRUE)
+
+    # Merge ethnicity measures by cancer alliance
+    ethnicity_df <- read.csv(paste0(dataDirPath, "ethnicity_by_cancer_alliance.csv"))
+    dataGrouped <- merge(dataGrouped, ethnicity_df, by = "Cancer.Alliance", all.x = TRUE)
+
     # Calculate rate of referrals per 100,000 population
     if (depVar == 'refRate') {
       dataGrouped$ref_rate <- (dataGrouped$told_diagnosis_outcome_total / dataGrouped$population) * 100000
@@ -877,6 +942,63 @@ Analysis <- function(data, periodLength, sensitivity_analysis, depVar) {
                     cluster="Cancer.Alliance")
     }
 
+    # Run model with mortality-based propensity score weights for sensitivity analysis
+    else if (sensitivity_analysis == "propensityScoreMortality") {
+
+      # merge on mortality propensity score weights
+      psw_mortality_weight = read.csv(paste0(dataDirPath, "PS_wts_mortality_for_sensruns.csv"))
+      dataGrouped = dataGrouped %>%
+        left_join((psw_mortality_weight %>%
+                     select(Cancer.Alliance = CancerAlliance,
+                            psw_mortality)))
+      print("Are there any Missing mortality PSW weights?\n")
+      print(table(is.na(dataGrouped$psw_mortality)))
+
+      # running the model with mortality PS weights
+      model = feols(fml= as.formula(formula_str),
+                    weights= ~psw_mortality,
+                    data=dataGrouped,
+                    cluster="Cancer.Alliance")
+    }
+
+    # Run model with stage-based propensity score weights for sensitivity analysis
+    else if (sensitivity_analysis == "propensityScoreStage") {
+
+      # merge on stage propensity score weights
+      psw_stage_weight = read.csv(paste0(dataDirPath, "PS_wts_stage_for_sensruns.csv"))
+      dataGrouped = dataGrouped %>%
+        left_join((psw_stage_weight %>%
+                     select(Cancer.Alliance = CancerAlliance,
+                            psw_stage)))
+      print("Are there any Missing stage PSW weights?\n")
+      print(table(is.na(dataGrouped$psw_stage)))
+
+      # running the model with stage PS weights
+      model = feols(fml= as.formula(formula_str),
+                    weights= ~psw_stage,
+                    data=dataGrouped,
+                    cluster="Cancer.Alliance")
+    }
+
+    # Run model with ethnicity-based propensity score weights for sensitivity analysis
+    else if (sensitivity_analysis == "propensityScoreEthnicity") {
+
+      # merge on ethnicity propensity score weights
+      psw_ethnicity_weight = read.csv(paste0(dataDirPath, "PS_wts_ethnicity_for_sensruns.csv"))
+      dataGrouped = dataGrouped %>%
+        left_join((psw_ethnicity_weight %>%
+                     select(Cancer.Alliance = CancerAlliance,
+                            psw_ethnicity)))
+      print("Are there any Missing ethnicity PSW weights?\n")
+      print(table(is.na(dataGrouped$psw_ethnicity)))
+
+      # running the model with ethnicity PS weights
+      model = feols(fml= as.formula(formula_str),
+                    weights= ~psw_ethnicity,
+                    data=dataGrouped,
+                    cluster="Cancer.Alliance")
+    }
+
     # Run model with wild bootstrapping for sensitivity analysis
     else if (sensitivity_analysis == "wildBootstrap") {
 
@@ -970,20 +1092,18 @@ Analysis <- function(data, periodLength, sensitivity_analysis, depVar) {
         sep = ""
       )
 
-      if (cancers_included %in% c(names(cancer_groups))) {
-        # Format p-values: no leading zero, 2 decimals (3 if <.01), <.001 for very small
-        p_value_text <- ifelse(results_df$P_Value < 0.001,
-                               "p<.001",
-                               ifelse(results_df$P_Value < 0.01,
-                                      paste0("p=", sub("^0", "", sprintf("%.3f", results_df$P_Value))),
-                                      paste0("p=", sub("^0", "", sprintf("%.2f", results_df$P_Value)))))
+      # Format p-values: no leading zero, 2 decimals (3 if <.01), <.001 for very small
+      p_value_text <- ifelse(results_df$P_Value < 0.001,
+                             "p<.001",
+                             ifelse(results_df$P_Value < 0.01,
+                                    paste0("p=", sub("^0", "", sprintf("%.3f", results_df$P_Value))),
+                                    paste0("p=", sub("^0", "", sprintf("%.2f", results_df$P_Value)))))
 
-        results_df$Formatted <- paste(results_df$Formatted,
-                                      ", ",
-                                      p_value_text,
-                                      sep = ""
-        )
-      }
+      results_df$Formatted <- paste(results_df$Formatted,
+                                    ", ",
+                                    p_value_text,
+                                    sep = ""
+      )
 
       results_df$Formatted <- paste(results_df$Formatted, ")", sep = "")
 
@@ -1486,6 +1606,15 @@ Analysis(baseData, periodLength = "6m", sensitivity_analysis = "propensityScore"
 Analysis(baseData, periodLength = "6m", sensitivity_analysis = "propensityScoreIMD", depVar = "delayRate") # produces overallResults_6m_propensityScoreIMD_delayRate.csv
 Analysis(baseData, periodLength = "6m", sensitivity_analysis = "propensityScoreIMD", depVar = "refRate") # produces overallResults_6m_propensityScoreIMD_refRate.csv
 
+Analysis(baseData, periodLength = "6m", sensitivity_analysis = "propensityScoreMortality", depVar = "delayRate") # produces overallResults_6m_propensityScoreMortality_delayRate.csv
+Analysis(baseData, periodLength = "6m", sensitivity_analysis = "propensityScoreMortality", depVar = "refRate") # produces overallResults_6m_propensityScoreMortality_refRate.csv
+
+Analysis(baseData, periodLength = "6m", sensitivity_analysis = "propensityScoreStage", depVar = "delayRate") # produces overallResults_6m_propensityScoreStage_delayRate.csv
+Analysis(baseData, periodLength = "6m", sensitivity_analysis = "propensityScoreStage", depVar = "refRate") # produces overallResults_6m_propensityScoreStage_refRate.csv
+
+Analysis(baseData, periodLength = "6m", sensitivity_analysis = "propensityScoreEthnicity", depVar = "delayRate") # produces overallResults_6m_propensityScoreEthnicity_delayRate.csv
+Analysis(baseData, periodLength = "6m", sensitivity_analysis = "propensityScoreEthnicity", depVar = "refRate") # produces overallResults_6m_propensityScoreEthnicity_refRate.csv
+
 Analysis(baseData, periodLength = "6m", sensitivity_analysis = "14days", depVar = "delayRate") # produces overallResults_6m_14days_delayRate.csv
 Analysis(baseData, periodLength = "6m", sensitivity_analysis = "42days", depVar = "delayRate") # produces overallResults_6m_42days_delayRate.csv
 Analysis(baseData, periodLength = "6m", sensitivity_analysis = "62days", depVar = "delayRate") # produces overallResults_6m_62days_delayRate.csv
@@ -1497,6 +1626,220 @@ for (ref_month in 1:5) {
   Analysis(baseData, periodLength = "1m", sensitivity_analysis = paste0("ref-", ref_month), depVar = "delayRate")
   Analysis(baseData, periodLength = "1m", sensitivity_analysis = paste0("ref-", ref_month), depVar = "refRate")
 }
+
+# ============================================================
+# Descriptive delay rates: Cancer Alliance x time period x cancer grouping
+# Produces two CSVs with observed (unadjusted) diagnostic delay rates
+# at monthly, quarterly, biannual, and yearly (all Oct-based) granularities.
+# One file at Cancer Alliance level, one at provider level.
+# ============================================================
+
+# Build complete mapping of all 17 cancer groupings (3 groups + 14 individual types)
+all_cancer_groupings <- cancer_groups
+for (ct in cancer_types_to_loop_through[!cancer_types_to_loop_through %in% names(cancer_groups)]) {
+  all_cancer_groupings[[ct]] <- ct
+}
+
+# Load display-name linking file for cancer grouping labels and sort order
+linking_file_desc <- read.csv(paste0(linkingDirPath, "Results Table Labels and Order.csv"),
+                              stringsAsFactors = FALSE)
+
+# Step 1: Aggregate to Cancer Alliance x month x cancer grouping (finest regional level)
+desc_monthly_ca <- map_dfr(names(all_cancer_groupings), function(grouping_name) {
+  filtered <- baseData %>%
+    filter(suspected_cancer_or_breast_symptomatic %in% all_cancer_groupings[[grouping_name]])
+
+  agg <- filtered %>%
+    group_by(Cancer.Alliance, monthNum) %>%
+    summarise(
+      num_delayed = sum(num_not_told_diagnosis_outcome_within_28_days),
+      total_referrals = sum(told_diagnosis_outcome_total),
+      mced_treated = first(mced_treated),
+      date = first(date),
+      .groups = "drop"
+    )
+
+  agg$cancer_grouping <- grouping_name
+  agg
+})
+
+# Step 1b: Aggregate to Provider x month x cancer grouping (finest provider level)
+desc_monthly_prov <- map_dfr(names(all_cancer_groupings), function(grouping_name) {
+  filtered <- baseData %>%
+    filter(suspected_cancer_or_breast_symptomatic %in% all_cancer_groupings[[grouping_name]])
+
+  agg <- filtered %>%
+    group_by(Provider.Code, monthNum) %>%
+    summarise(
+      num_delayed = sum(num_not_told_diagnosis_outcome_within_28_days),
+      total_referrals = sum(told_diagnosis_outcome_total),
+      accountable_provider = first(accountable_provider),
+      Cancer.Alliance = first(Cancer.Alliance),
+      mced_treated = first(mced_treated),
+      date = first(date),
+      .groups = "drop"
+    )
+
+  agg$cancer_grouping <- grouping_name
+  agg
+})
+
+# Step 2: Derive Oct-based time period labels
+add_period_labels <- function(df) {
+  df %>%
+    mutate(
+      date_parsed = as.Date(date),
+      cal_year = as.integer(format(date_parsed, "%Y")),
+      cal_month = as.integer(format(date_parsed, "%m")),
+      fiscal_year_start = ifelse(cal_month >= 10, cal_year, cal_year - 1),
+      fiscal_month = ifelse(cal_month >= 10, cal_month - 9, cal_month + 3),
+      monthly_label = format(date_parsed, "%b %Y"),
+      quarter_label = paste0("Q", ceiling(fiscal_month / 3),
+                             " ", fiscal_year_start, "-", fiscal_year_start + 1),
+      biannual_label = ifelse(fiscal_month <= 6,
+                              paste0("Oct ", fiscal_year_start, "-Mar ", fiscal_year_start + 1),
+                              paste0("Apr ", fiscal_year_start + 1, "-Sep ", fiscal_year_start + 1)),
+      yearly_label = paste0("Oct ", fiscal_year_start, " - Sep ", fiscal_year_start + 1)
+    )
+}
+
+desc_monthly_ca <- add_period_labels(desc_monthly_ca)
+desc_monthly_prov <- add_period_labels(desc_monthly_prov)
+
+# Step 3: Helper function to aggregate at a given time granularity
+aggregate_desc_rates <- function(data, group_cols, period_col, granularity_name) {
+  data %>%
+    group_by(across(all_of(c(group_cols, "cancer_grouping", "mced_treated"))),
+             period_label = .data[[period_col]]) %>%
+    summarise(
+      num_delayed = sum(num_delayed),
+      total_referrals = sum(total_referrals),
+      n_months = n(),
+      min_monthNum = min(monthNum),
+      .groups = "drop"
+    ) %>%
+    mutate(time_granularity = granularity_name)
+}
+
+# Step 4: Aggregate at all 4 granularities for Cancer Alliance level
+ca_group_cols <- "Cancer.Alliance"
+all_rates_ca <- bind_rows(
+  aggregate_desc_rates(desc_monthly_ca, ca_group_cols, "monthly_label", "Monthly"),
+  aggregate_desc_rates(desc_monthly_ca, ca_group_cols, "quarter_label", "Quarterly"),
+  aggregate_desc_rates(desc_monthly_ca, ca_group_cols, "biannual_label", "Biannual"),
+  aggregate_desc_rates(desc_monthly_ca, ca_group_cols, "yearly_label", "Yearly")
+)
+
+# Step 4b: Aggregate at all 4 granularities for Provider level
+prov_group_cols <- c("Provider.Code", "accountable_provider", "Cancer.Alliance")
+all_rates_prov <- bind_rows(
+  aggregate_desc_rates(desc_monthly_prov, prov_group_cols, "monthly_label", "Monthly"),
+  aggregate_desc_rates(desc_monthly_prov, prov_group_cols, "quarter_label", "Quarterly"),
+  aggregate_desc_rates(desc_monthly_prov, prov_group_cols, "biannual_label", "Biannual"),
+  aggregate_desc_rates(desc_monthly_prov, prov_group_cols, "yearly_label", "Yearly")
+)
+
+# Step 5: Compute delay rate and add display labels for both files
+finalize_desc_rates <- function(df, sort_geo_col) {
+  df %>%
+    mutate(delay_rate = num_delayed / total_referrals) %>%
+    left_join(linking_file_desc[, c("CancerType", "CancerTypeLabel", "Order")],
+              by = c("cancer_grouping" = "CancerType")) %>%
+    mutate(
+      cancer_grouping_label = trimws(ifelse(is.na(CancerTypeLabel),
+                                            cancer_grouping, CancerTypeLabel))
+    ) %>%
+    arrange(Order, time_granularity, min_monthNum, .data[[sort_geo_col]]) %>%
+    select(-CancerTypeLabel, -Order)
+}
+
+all_rates_ca <- finalize_desc_rates(all_rates_ca, "Cancer.Alliance")
+all_rates_ca <- all_rates_ca %>%
+  select(Cancer.Alliance, mced_treated, cancer_grouping, cancer_grouping_label,
+         time_granularity, period_label, min_monthNum, n_months,
+         num_delayed, total_referrals, delay_rate)
+
+all_rates_prov <- finalize_desc_rates(all_rates_prov, "Provider.Code")
+all_rates_prov <- all_rates_prov %>%
+  select(Provider.Code, accountable_provider, Cancer.Alliance, mced_treated,
+         cancer_grouping, cancer_grouping_label,
+         time_granularity, period_label, min_monthNum, n_months,
+         num_delayed, total_referrals, delay_rate)
+
+# Step 5b: Add FDS 25% target comparison columns using pooled DID estimates
+did_results <- read.csv(paste0(resultsDirPath, "SuppTable_overallResults_6m_delayRate.csv"),
+                        stringsAsFactors = FALSE)
+
+# Parse DID point estimates from formatted strings (e.g., "3.42 (1.89-4.95, p<.001)" -> 3.42)
+did_lookup <- did_results %>%
+  filter(CancerType %in% c("Primary high-detection group",
+                            "Secondary expanded high-detection group",
+                            "Secondary low-detection group")) %>%
+  select(CancerType, Months0.5, Months6.11) %>%
+  tidyr::pivot_longer(cols = c(Months0.5, Months6.11),
+                      names_to = "period_col", values_to = "est_string") %>%
+  mutate(
+    did_estimate_pp = as.numeric(sub("\\s.*", "", est_string)),
+    cancer_grouping = case_when(
+      CancerType == "Primary high-detection group" ~ "primary_high_detection",
+      CancerType == "Secondary expanded high-detection group" ~ "sec_exp_high_detection",
+      CancerType == "Secondary low-detection group" ~ "sec_low_detection"
+    ),
+    period_label = ifelse(period_col == "Months0.5", "Oct 2021-Mar 2022", "Apr 2022-Sep 2022")
+  ) %>%
+  select(cancer_grouping, period_label, did_estimate_pp)
+
+# Helper to add FDS target columns to a descriptive rates data frame
+add_fds_target_cols <- function(df) {
+  df %>%
+    left_join(did_lookup, by = c("cancer_grouping", "period_label")) %>%
+    mutate(
+      did_estimate_pp = ifelse(time_granularity == "Biannual", did_estimate_pp, NA_real_),
+      under_25pct_target = ifelse(!is.na(did_estimate_pp),
+                                  ifelse(delay_rate < 0.25, "Yes", "No"), NA_character_),
+      diff_from_25pct_target_pp = ifelse(!is.na(did_estimate_pp),
+                                         (delay_rate - 0.25) * 100, NA_real_),
+      delay_rate_minus_did_estimate = ifelse(!is.na(did_estimate_pp) & mced_treated == 1,
+                                             delay_rate * 100 - did_estimate_pp, NA_real_),
+      adj_rate_under_25pct_target = ifelse(!is.na(did_estimate_pp) & mced_treated == 1,
+                                           ifelse(delay_rate_minus_did_estimate < 25, "Yes", "No"),
+                                           NA_character_)
+    ) %>%
+    select(-did_estimate_pp)
+}
+
+all_rates_ca <- add_fds_target_cols(all_rates_ca)
+all_rates_prov <- add_fds_target_cols(all_rates_prov)
+
+rm(did_results, did_lookup)
+
+# Step 5c: Convert delay_rate to percentage points and round numeric columns to 2 dp
+format_desc_rates <- function(df) {
+  df %>%
+    mutate(
+      delay_rate = round(delay_rate * 100, 2),
+      diff_from_25pct_target_pp = round(diff_from_25pct_target_pp, 2),
+      delay_rate_minus_did_estimate = round(delay_rate_minus_did_estimate, 2)
+    )
+}
+
+all_rates_ca <- format_desc_rates(all_rates_ca)
+all_rates_prov <- format_desc_rates(all_rates_prov)
+
+# Step 6: Write output CSVs
+write.csv(all_rates_ca,
+          paste0(resultsDirPath, "descriptiveDelayRates_byCancerAlliance_timePeriod.csv"),
+          row.names = FALSE)
+print("Descriptive delay rates (Cancer Alliance level) saved.")
+
+write.csv(all_rates_prov,
+          paste0(resultsDirPath, "descriptiveDelayRates_byProvider_timePeriod.csv"),
+          row.names = FALSE)
+print("Descriptive delay rates (Provider level) saved.")
+
+# Clean up intermediate objects
+rm(desc_monthly_ca, desc_monthly_prov, all_rates_ca, all_rates_prov,
+   all_cancer_groupings, linking_file_desc)
 
 library(patchwork)
 

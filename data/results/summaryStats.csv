@@ -29,3 +29,17 @@
 "Table 1, pct population in IMD quintile 3 (50-77), not participating in trial_6m_delayRate",0.21237518295157
 "Table 1, pct population in IMD quintile 4 (50-77), not participating in trial_6m_delayRate",0.231178862098385
 "Table 1, pct population in IMD quintile 5 (50-77), not participating in trial_6m_delayRate",0.248844721051897
+"Table 1, pct stage III/IV (known stage), participating in trial_6m_delayRate",0.491743760496248
+"Table 1, pct stage III/IV (known stage), not participating in trial_6m_delayRate",0.475679281362565
+"Table 1, cancer mortality ASR per 100k (excl NMSC), participating in trial_6m_delayRate",266.640063796443
+"Table 1, cancer mortality ASR per 100k (excl NMSC), not participating in trial_6m_delayRate",244.053879562491
+"Table 1, pct white, participating in trial_6m_delayRate",83.2548602246737
+"Table 1, pct asian, participating in trial_6m_delayRate",8.26553256745139
+"Table 1, pct black, participating in trial_6m_delayRate",4.05393444085502
+"Table 1, pct mixed, participating in trial_6m_delayRate",2.70212645162578
+"Table 1, pct other, participating in trial_6m_delayRate",1.72354631539413
+"Table 1, pct white, not participating in trial_6m_delayRate",79.2115354563781
+"Table 1, pct asian, not participating in trial_6m_delayRate",10.7207277306271
+"Table 1, pct black, not participating in trial_6m_delayRate",4.35090282249148
+"Table 1, pct mixed, not participating in trial_6m_delayRate",3.16532217538495
+"Table 1, pct other, not participating in trial_6m_delayRate",2.55151181511835
