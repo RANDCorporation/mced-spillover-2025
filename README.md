@@ -68,7 +68,6 @@ These scripts build the panel datasets and Cancer Alliance-level covariates from
 
 12. `R/analysis/mced_panel_analysis.R` — Main difference-in-differences analysis of FDS outcomes (diagnostic delay rate, referral rate, estimated wait time) with all sensitivity analyses. Outputs result tables and figures to `data/results/`.
 13. `R/analysis/tww_analysis.R` — Difference-in-differences analysis of TWW outcomes (breach rate, referral rate, estimated wait time). Outputs result tables to `data/results/`.
-14. `R/analysis/forest_plots_estWaitTime.R` — Generates forest plot figures for estimated wait time outcomes. Outputs EPS figures to `data/results/`.
 
 ### Contributors
 

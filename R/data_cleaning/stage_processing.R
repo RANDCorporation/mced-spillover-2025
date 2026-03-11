@@ -20,7 +20,8 @@ outDirPath <- paste0(dirPath, "cleaned_data/")
 
 # # # Read input file # # #
 
-# This file was downloaded on March 4, 2026 from https://digital.nhs.uk/ndrs/data/data-outputs/cancer-data-hub/cancer-stage-at-diagnosis
+# This file was downloaded on March 4, 2026 from shiny app accessed at https://digital.nhs.uk/ndrs/data/data-outputs/cancer-data-hub/cancer-stage-at-diagnosis
+# Exact download instructions from this website: Click 'Open Dashboard" button; Click 'Cancer Group' tab; Click 'Download' button under 'Download the Data'
 stage_raw <- read.csv(paste0(stageDirPath,
   "NDRS Stage Metrics- Stage at diagnosis by cancer site in England, 2013-2022.csv"))
 

@@ -5,8 +5,7 @@
 
 # Description
 # This program analyzes Two Week Wait (TWW) breach rates and estimated wait times using a difference-in-differences
-# panel analysis framework. Follows the same methodology as mced_panel_analysis.R but with a shorter study period
-# (Apr 2021 - Sep 2023) and no sensitivity analyses beyond the main model.
+# panel analysis framework. Follows the same methodology as mced_panel_analysis.R but with no sensitivity analyses beyond the main model.
 
 # ### Read in Analytic Data
 
@@ -389,12 +388,10 @@ TWWAnalysis <- function(data, periodLength, depVar) {
                                     paste0("p=", sub("^0", "", sprintf("%.2f", results_df$P_Value)))))
 
       results_df$Formatted <- paste(results_df$Formatted,
-                                    ", ",
+                                    "), ",
                                     p_value_text,
                                     sep = ""
       )
-
-      results_df$Formatted <- paste(results_df$Formatted, ")", sep = "")
 
       results_df <- data.frame(Variable = rownames(results_df), results_df, check.names = FALSE)
       rownames(results_df) <- NULL

@@ -3,9 +3,6 @@
 # date: "23 July 2025"
 # output: github_document
 
-# Description
-# This program grabs data from the provided URLs and processes them to generate a panel dataset for analysis of diagnostic delays in NHS England.
-
 # ### Read in Analytic Data
 
 library(tidyverse)
@@ -191,6 +188,12 @@ Analysis <- function(data, periodLength, sensitivity_analysis, depVar) {
     data <- data[data$monthNum != 6, ]
     data <- data[data$monthNum != 7, ]
     data <- data[data$monthNum != 8, ]
+  }
+
+  # # Sensitivity analysis: Exclude lung cancer from all groups and individual cancer types
+  if (sensitivity_analysis == "excludeLung") {
+    cancer_groups <- lapply(cancer_groups, function(x) x[x != "Suspected lung cancer"])
+    cancer_types_to_loop_through <- cancer_types_to_loop_through[cancer_types_to_loop_through != "Suspected lung cancer"]
   }
 
   # # Create period number variable
@@ -717,12 +720,6 @@ Analysis <- function(data, periodLength, sensitivity_analysis, depVar) {
         date = first(date)
       )
 
-    # Compute total referrals across all Cancer Alliances and all periods for this cancer type/group
-    total_referrals <- dataGrouped %>%
-      ungroup() %>%
-      summarise(total = sum(told_diagnosis_outcome_total, na.rm = TRUE)) %>%
-      pull(total)
-
     # calculating percentage of patients facing diagnostic delay
     dataGrouped$percentage_not_told_diagnosis_outcome_within_28_days = (dataGrouped$num_not_told_diagnosis_outcome_within_28_days / dataGrouped$told_diagnosis_outcome_total)
 
@@ -1100,12 +1097,10 @@ Analysis <- function(data, periodLength, sensitivity_analysis, depVar) {
                                     paste0("p=", sub("^0", "", sprintf("%.2f", results_df$P_Value)))))
 
       results_df$Formatted <- paste(results_df$Formatted,
-                                    ", ",
+                                    "), ",
                                     p_value_text,
                                     sep = ""
       )
-
-      results_df$Formatted <- paste(results_df$Formatted, ")", sep = "")
 
       results_df <- data.frame(Variable = rownames(results_df), results_df, check.names = FALSE)
       rownames(results_df) <- NULL  # Remove the original row names to avoid confusion
@@ -1128,19 +1123,10 @@ Analysis <- function(data, periodLength, sensitivity_analysis, depVar) {
       results_transposed <- results_transposed %>%
         mutate(CancerType = cancers_included)
 
-      # Conditionally add Total No. of Referrals and Pre-Trial Baseline columns
-      if (depVar %in% c("delayRate", "estWaitTime")) {
-        results_transposed <- results_transposed %>%
-          mutate(
-            `Total No. of Referrals` = format(total_referrals, big.mark = ",", trim = TRUE),
-            `Pre-Trial Baseline` = sprintf("%.1f", pretrial_baseline)
-          ) %>%
-          select(CancerType, `Total No. of Referrals`, `Pre-Trial Baseline`, "Months0-5", "Months6-11", "Months12-17", "Months18-23", "Months24-29", "Months30-35")
-      } else {
-        results_transposed <- results_transposed %>%
-          mutate(`Pre-Trial Baseline` = sprintf("%.1f", pretrial_baseline)) %>%
-          select(CancerType, `Pre-Trial Baseline`, "Months0-5", "Months6-11", "Months12-17", "Months18-23", "Months24-29", "Months30-35")
-      }
+      # Add Pre-Trial Baseline column
+      results_transposed <- results_transposed %>%
+        mutate(`Pre-Trial Baseline` = sprintf("%.1f", pretrial_baseline)) %>%
+        select(CancerType, `Pre-Trial Baseline`, "Months0-5", "Months6-11", "Months12-17", "Months18-23", "Months24-29", "Months30-35")
 
       overall_results <- rbind(overall_results, results_transposed)
     }
@@ -1578,6 +1564,33 @@ SKIP_EXTRA_OUTPUTS <- TRUE
 # Set to TRUE to only produce Figure 1 (for fast iteration on formatting)
 FIGURE1_ONLY <- FALSE
 
+# # # Generate referral summary table across entire cleaned dataset # # #
+referral_summary <- data.frame()
+for (cancer_type in cancer_types_to_loop_through) {
+  if (cancer_type %in% names(cancer_groups)) {
+    subset_data <- baseData[baseData$suspected_cancer_or_breast_symptomatic %in% cancer_groups[[cancer_type]], ]
+  } else {
+    subset_data <- baseData[baseData$suspected_cancer_or_breast_symptomatic == cancer_type, ]
+  }
+  referral_summary <- rbind(referral_summary, data.frame(
+    CancerType = cancer_type,
+    `Total No. of Referrals` = sum(subset_data$told_diagnosis_outcome_total, na.rm = TRUE),
+    `No. Delayed` = sum(subset_data$num_not_told_diagnosis_outcome_within_28_days, na.rm = TRUE),
+    check.names = FALSE
+  ))
+}
+# Apply same label and order mapping as the overallResults tables
+referral_linking <- read.csv(paste0(linkingDirPath, "Results Table Labels and Order.csv"), stringsAsFactors = FALSE)
+referral_summary <- merge(referral_summary, referral_linking[, c("CancerType", "CancerTypeLabel", "Order")], by = "CancerType", all.x = TRUE)
+referral_summary$CancerType <- referral_summary$CancerTypeLabel
+referral_summary <- referral_summary %>%
+  arrange(Order) %>%
+  select(-CancerTypeLabel, -Order) %>%
+  rename(`Suspected Cancer Type` = CancerType)
+referral_summary$`Total No. of Referrals` <- format(referral_summary$`Total No. of Referrals`, big.mark = ",", trim = TRUE)
+referral_summary$`No. Delayed` <- format(referral_summary$`No. Delayed`, big.mark = ",", trim = TRUE)
+write.csv(referral_summary, paste0(resultsDirPath, "SuppTable_referralSummary.csv"), row.names = FALSE)
+
 if (!FIGURE1_ONLY) {
 Analysis(baseData, periodLength = "1m", sensitivity_analysis = "", depVar = "delayRate")
 Analysis(baseData, periodLength = "1m", sensitivity_analysis = "", depVar = "refRate")
@@ -1618,6 +1631,9 @@ Analysis(baseData, periodLength = "6m", sensitivity_analysis = "propensityScoreE
 Analysis(baseData, periodLength = "6m", sensitivity_analysis = "14days", depVar = "delayRate") # produces overallResults_6m_14days_delayRate.csv
 Analysis(baseData, periodLength = "6m", sensitivity_analysis = "42days", depVar = "delayRate") # produces overallResults_6m_42days_delayRate.csv
 Analysis(baseData, periodLength = "6m", sensitivity_analysis = "62days", depVar = "delayRate") # produces overallResults_6m_62days_delayRate.csv
+
+Analysis(baseData, periodLength = "6m", sensitivity_analysis = "excludeLung", depVar = "delayRate") # produces overallResults_6m_excludeLung_delayRate.csv
+Analysis(baseData, periodLength = "6m", sensitivity_analysis = "excludeLung", depVar = "refRate") # produces overallResults_6m_excludeLung_refRate.csv
 
 Analysis(baseData, periodLength = "6m", sensitivity_analysis = "", depVar = "estWaitTime") # produces overallResults_6m_estWaitTime.csv
 
@@ -1837,9 +1853,51 @@ write.csv(all_rates_prov,
           row.names = FALSE)
 print("Descriptive delay rates (Provider level) saved.")
 
+# Step 7: eTable — unadjusted delay rates by Cancer Alliance (primary high-detection group)
+# Rows = Cancer Alliances (participating first, then non-participating, alphabetically)
+# Columns = biannual time periods matching overall results labels
+# Cells = "XX.X% (+Y.Y%)" where Y.Y% is the differential from the 25% FDS target
+
+period_to_col <- c(
+  "Apr 2021-Sep 2021" = "Pre-Trial Baseline",
+  "Oct 2021-Mar 2022" = "Months 0-5",
+  "Apr 2022-Sep 2022" = "Months 6-11",
+  "Oct 2022-Mar 2023" = "Months12-17",
+  "Apr 2023-Sep 2023" = "Months18-23",
+  "Oct 2023-Mar 2024" = "Months24-29",
+  "Apr 2024-Sep 2024" = "Months30-35"
+)
+
+etable_ca <- all_rates_ca %>%
+  filter(
+    time_granularity == "Biannual",
+    cancer_grouping == "primary_high_detection",
+    mced_treated == 1,
+    period_label %in% c("Oct 2021-Mar 2022", "Apr 2022-Sep 2022")
+  ) %>%
+  mutate(
+    diff_pp = delay_rate - 25.0,
+    sign_prefix = ifelse(diff_pp >= 0, "+", ""),
+    formatted_cell = sprintf("%.2f%% (%s%.2f%%)", delay_rate, sign_prefix, diff_pp),
+    col_name = period_to_col[period_label]
+  ) %>%
+  select(Cancer.Alliance, col_name, formatted_cell) %>%
+  tidyr::pivot_wider(names_from = col_name, values_from = formatted_cell) %>%
+  arrange(Cancer.Alliance) %>%
+  rename(Regions = Cancer.Alliance) %>%
+  select(Regions, `Months 0-5`, `Months 6-11`)
+
+# Replace any NA cells with "--"
+etable_ca[is.na(etable_ca)] <- "--"
+
+write.csv(etable_ca,
+          paste0(resultsDirPath, "SuppTable_delayRateByCancerAlliance_6m_primary_high_detection.csv"),
+          row.names = FALSE)
+print("eTable: delay rate by Cancer Alliance (primary high-detection) saved.")
+
 # Clean up intermediate objects
 rm(desc_monthly_ca, desc_monthly_prov, all_rates_ca, all_rates_prov,
-   all_cancer_groupings, linking_file_desc)
+   all_cancer_groupings, linking_file_desc, period_to_col, etable_ca)
 
 library(patchwork)
 
@@ -2564,7 +2622,7 @@ library(patchwork)
 
 # --- Helper: parse formatted DiD string into numeric components ---
 parse_did_string <- function(s) {
-  m <- str_match(s, "^\\s*(-?\\d+\\.\\d+)\\s*\\((-?\\d+\\.\\d+)-(-?\\d+\\.\\d+),\\s*p([=<])(\\d*\\.\\d+)")
+  m <- str_match(s, "^\\s*(-?\\d+\\.\\d+)\\s*\\((-?\\d+\\.\\d+)-(-?\\d+\\.\\d+)\\),\\s*p([=<])(\\d*\\.\\d+)")
   data.frame(
     estimate = as.numeric(m[, 2]),
     lower_ci = as.numeric(m[, 3]),
@@ -2579,7 +2637,7 @@ parse_did_string <- function(s) {
 results_csv <- read.csv(paste0(resultsDirPath, "SuppTable_overallResults_6m_delayRate.csv"),
                         check.names = FALSE, stringsAsFactors = FALSE)
 
-group_rows <- results_csv %>% filter(grepl("p[=<]", `Months0-5`))
+group_rows <- results_csv %>% filter(!grepl("^\\s", CancerType))
 
 group_display_labels <- c(
   "Primary high-detection group",
@@ -2900,9 +2958,9 @@ whisker_height <- row_spacing * 0.3
 forest_panel <- ggplot(fig2_data) +
   coord_cartesian(ylim = c(y_min, y_max), xlim = c(-9, 9)) +
 
-  # Zero reference line (dotted, clipped)
+  # Zero reference line (dotted, extends to x-axis)
   annotate("segment", x = 0, xend = 0,
-           y = y_min, yend = y_top_data,
+           y = y_min - 1, yend = y_top_data,
            linetype = "dotted", color = "grey40", linewidth = 0.5) +
 
   # CI lines with whisker caps
@@ -2956,7 +3014,7 @@ cat("Figure 2 saved to:", paste0(resultsDirPath, "Figure2_ForestPlot_delayRate.p
 results_csv_ref <- read.csv(paste0(resultsDirPath, "SuppTable_overallResults_6m_refRate.csv"),
                             check.names = FALSE, stringsAsFactors = FALSE)
 
-group_rows_ref <- results_csv_ref %>% filter(grepl("p[=<]", `Months0-5`))
+group_rows_ref <- results_csv_ref %>% filter(!grepl("^\\s", CancerType))
 
 fig_ref_data <- map_dfr(seq_len(nrow(group_rows_ref)), function(i) {
   map_dfr(seq_along(period_col_names), function(j) {
@@ -3200,9 +3258,9 @@ text_panel_ref <- ggplot() +
 forest_panel_ref <- ggplot(fig_ref_data) +
   coord_cartesian(ylim = c(yr_min, yr_max), xlim = c(-ref_x_max, ref_x_max)) +
 
-  # Zero reference line (dotted, clipped)
+  # Zero reference line (dotted, extends to x-axis)
   annotate("segment", x = 0, xend = 0,
-           y = yr_min, yend = yr_top_data,
+           y = yr_min - 1, yend = yr_top_data,
            linetype = "dotted", color = "grey40", linewidth = 0.5) +
 
   # CI lines with whisker caps
